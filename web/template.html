@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CardPulse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar (brand, views, global card search); each view = summary strip, then detail. Prices set in mono. */
+:root{
+  --bg:#F2F4F7; --surface:#FFFFFF; --ink:#141C27; --muted:#5A6576; --line:#DCE1E8;
+  --accent:#0D7480; --accent-soft:#D7EEF0; --spark:#E3A21A; --up:#178A4C; --down:#C93C3C;
+  --up-soft:#DDF2E5; --down-soft:#F8E0E0;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E131A; --surface:#161D27; --ink:#E7ECF2; --muted:#93A0B1; --line:#263142;
+  --accent:#3DB6C1; --accent-soft:#163A40; --spark:#F0BC45; --up:#3CC07A; --down:#F06A6A;
+  --up-soft:#16352A; --down-soft:#3A1E22; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E131A; --surface:#161D27; --ink:#E7ECF2; --muted:#93A0B1; --line:#263142;
+  --accent:#3DB6C1; --accent-soft:#163A40; --spark:#F0BC45; --up:#3CC07A; --down:#F06A6A;
+  --up-soft:#16352A; --down-soft:#3A1E22; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-block:10px}
+.brand{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.02em;display:flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none}
+.pulse{width:22px;height:22px;border-radius:6px;background:conic-gradient(from 200deg,var(--accent),var(--spark),var(--accent));position:relative}
+.pulse::after{content:"";position:absolute;inset:6px;border-radius:3px;background:var(--surface)}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav a{color:var(--muted);text-decoration:none;font-weight:500;padding:6px 12px;border-radius:999px}
+nav a:hover{color:var(--ink);background:var(--bg)}
+nav a[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.gsearch{margin-left:auto;position:relative;flex:0 1 340px;min-width:0}
+.gsearch input{width:100%;padding:8px 12px 8px 34px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+.gsearch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.results{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.14);max-height:420px;overflow:auto;padding:4px;z-index:6}
+.res{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;color:var(--ink);text-decoration:none}
+.res:hover,.res.on{background:var(--bg)}
+.res img,.res .mini{width:34px;height:47px;object-fit:cover;border-radius:3px;background:var(--bg)}
+.res > div{min-width:0}
+.res b{display:block;font-size:13px;font-weight:600}
+.res span{font-size:11px;color:var(--muted)}
+.res .price{font-size:13px}
+main{padding-block:28px 48px}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.015em;text-wrap:balance;margin:0}
+h1{font-size:clamp(26px,3.4vw,38px);font-weight:800}
+h2{font-size:20px;font-weight:700}
+h3{font-size:17px;font-weight:700}
+.lede{color:var(--muted);max-width:70ch;margin:6px 0 0}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mono,.price{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.view{display:grid;gap:20px}
+.up{color:var(--up)} .down{color:var(--down)}
+.head{display:flex;gap:12px;align-items:end;justify-content:space-between;flex-wrap:wrap}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.filters label{display:grid;gap:3px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.filters select,.filters input{font:inherit;font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;min-width:0}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:2px;background:var(--bg)}
+.seg button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;padding:5px 12px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.tag.eu{background:var(--accent-soft);color:var(--accent)}
+.tag.us{background:#FFF1D1;color:#8A5A00}
+:root[data-theme="dark"] .tag.us{background:#3A2F14;color:#F0BC45}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tag.us{background:#3A2F14;color:#F0BC45}}
+/* Pokemon view */
+.pk-layout{display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start}
+.picker{position:sticky;top:calc(env(safe-area-inset-top,0px) + 76px);display:grid;gap:10px}
+.picker input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+.plist{display:grid;gap:2px;max-height:62vh;overflow:auto;padding-right:4px}
+.plist button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;color:var(--ink);font:inherit;text-align:left;padding:4px 6px;border-radius:6px;cursor:pointer}
+.plist button:hover{background:var(--bg)}
+.plist button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.plist img{width:32px;height:32px;image-rendering:pixelated}
+.plist .p{margin-left:auto;font-size:12px;color:var(--muted)}
+.hero{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center}
+.hero img{width:112px;height:112px;image-rendering:pixelated;background:var(--bg);border-radius:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);text-transform:capitalize}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{background:var(--bg);border-radius:8px;padding:10px 12px;min-width:0}
+.tile b{display:block;font-family:var(--mono);font-size:20px;font-weight:500}
+.tile span{font-size:12px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 16px;margin-top:10px;font-size:12px}
+.stat{display:grid;grid-template-columns:64px 30px 1fr;align-items:center;gap:6px;color:var(--muted)}
+.stat i{display:block;height:5px;border-radius:3px;background:var(--accent)}
+.strip{width:100%;height:150px}
+.grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.card{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);cursor:pointer;display:grid;gap:5px;align-content:start;text-align:left;color:var(--ink);text-decoration:none;transition:transform .15s}
+.card:hover{transform:translateY(-3px)}
+.art{aspect-ratio:63/88;border-radius:6px;overflow:hidden;background:var(--bg);display:grid;place-items:center;max-width:100%}
+.art img{width:100%;height:100%;object-fit:cover}
+.ph{width:100%;height:100%;display:grid;place-items:center;text-align:center;padding:10px;font-size:12px;color:var(--muted);background:repeating-linear-gradient(135deg,var(--bg) 0 8px,var(--surface) 8px 16px)}
+.card .nm{font-size:13px;font-weight:600;line-height:1.25}
+.card .sub{font-size:11px;color:var(--muted)}
+.card .pr{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.card .price{font-size:15px}
+.chart{width:100%;height:340px}
+/* Card page */
+.cp{display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:start}
+.cp .art{border-radius:12px}
+.big{font-family:var(--mono);font-size:34px;font-weight:500;line-height:1.1}
+.vars{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.vars span{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--bg);color:var(--muted)}
+.vars span b{font-family:var(--mono);font-weight:500;color:var(--ink)}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mkt{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.mkt.win{border-color:var(--up);background:var(--up-soft)}
+.mkt .eyebrow{display:flex;justify-content:space-between;gap:8px}
+.mkt b{display:block;font-family:var(--mono);font-size:22px;font-weight:500}
+.mkt small{color:var(--muted)}
+.verdict{font-family:var(--display);font-weight:700;font-size:18px}
+.note{font-size:12px;color:var(--muted)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:14px}
+dt{color:var(--muted)} dd{margin:0}
+.crumb{font-size:13px;color:var(--muted)}
+.crumb a{color:var(--accent);text-decoration:none}
+.row-cards{display:grid;grid-auto-flow:column;grid-auto-columns:130px;gap:12px;overflow-x:auto;padding-bottom:6px}
+/* Movers */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.rows{display:grid}
+.row{display:grid;grid-template-columns:44px 1fr 74px 84px 70px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line);color:var(--ink);text-decoration:none}
+.row:first-child{border-top:0}
+.row:hover .t b{color:var(--accent)}
+.row img,.row .mini{width:44px;height:61px;object-fit:cover;border-radius:4px;background:var(--bg)}
+.row .t{min-width:0}
+.row .t b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t span{font-size:11px;color:var(--muted)}
+.row .chg{font-family:var(--mono);text-align:right;font-weight:500}
+.row .price{text-align:right;font-size:13px}
+.empty{color:var(--muted);padding:12px 0}
+/* Map */
+.map{width:100%;height:600px}
+.legend4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;font-size:13px}
+.legend4 div{padding:10px;border-radius:8px;background:var(--bg)}
+.legend4 b{display:block;font-family:var(--display)}
+/* Sets */
+.sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px}
+.setc .chart{height:150px}
+.chase{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.chase a{display:block}
+footer{border-top:1px solid var(--line);padding-block:20px;font-size:12px;color:var(--muted)}
+@media (max-width:900px){.pk-layout,.cp{grid-template-columns:1fr}.cp .art{max-width:260px}.picker{position:static}.plist{max-height:220px}.two{grid-template-columns:1fr}.tiles,.legend4{grid-template-columns:repeat(2,minmax(0,1fr))}.map{height:460px}.sets{grid-template-columns:1fr}.gsearch{flex-basis:100%;margin-left:0}}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.row{grid-template-columns:40px 1fr 64px 64px}.row .spark{display:none}.hero{grid-template-columns:1fr}.compare{grid-template-columns:1fr}.sets{grid-template-columns:minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+/* base reset */
+html{color-scheme:light}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap bar">
+  <a class="brand" href="#pokemon"><span class="pulse" aria-hidden="true"></span>CardPulse</a>
+  <nav id="nav"><a href="#pokemon">Pokémon</a><a href="#movers">Movers</a><a href="#map">Market Map</a><a href="#sets">Sets</a></nav>
+  <div class="gsearch" role="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="gq" type="search" placeholder="Search any card, e.g. umbreon vmax" autocomplete="off" aria-label="Search cards">
+    <div class="results" id="gres" hidden></div>
+  </div>
+</div></header>
+
+<main class="wrap">
+  <section class="view" id="v-pokemon">
+    <div class="pk-layout">
+      <aside class="panel picker">
+        <label class="eyebrow" for="q">Find a Pokémon</label>
+        <input id="q" type="search" placeholder="e.g. umbreon" autocomplete="off">
+        <div class="plist" id="plist"></div>
+      </aside>
+      <div class="view" id="pk-main"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-card" hidden></section>
+
+  <section class="view" id="v-movers" hidden>
+    <div class="head">
+      <div><h1>What moved</h1><p class="lede">Biggest price changes. Narrow it to a set, rarity or budget, or search for a single card at the top.</p></div>
+    </div>
+    <div class="filters">
+      <div class="seg" id="mv-win"><button data-k="chg12" aria-pressed="true">12 months</button><button data-k="chg3" aria-pressed="false">3 months</button></div>
+      <label for="mv-set">Set<select id="mv-set"></select></label>
+      <label for="mv-rar">Rarity<select id="mv-rar"></select></label>
+      <label for="mv-min">Price now<select id="mv-min"><option value="1">$1+</option><option value="5" selected>$5+</option><option value="20">$20+</option><option value="100">$100+</option></select></label>
+      <label for="mv-n">Show<select id="mv-n"><option>12</option><option>25</option><option>50</option></select></label>
+    </div>
+    <div class="two">
+      <div class="panel"><h2 class="up">Gainers</h2><div class="rows" id="mv-up"></div></div>
+      <div class="panel"><h2 class="down">Fallers</h2><div class="rows" id="mv-down"></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-map" hidden>
+    <div><h1>Market Map</h1><p class="lede">Each sprite is a Pokémon. Across: how its cards’ prices moved over 12 months. Up: its most valuable card today. Drag or scroll on the chart to zoom.</p></div>
+    <div class="filters">
+      <label for="mp-set">Set<select id="mp-set"></select></label>
+      <label for="mp-gen">Generation<select id="mp-gen"></select></label>
+      <label for="mp-type">Type<select id="mp-type"></select></label>
+      <label for="mp-n">Show<select id="mp-n"><option value="50" selected>Top 50 by value</option><option value="100">Top 100</option><option value="0">All</option></select></label>
+      <label for="mp-q">Highlight<input id="mp-q" type="search" placeholder="e.g. pikachu" autocomplete="off"></label>
+      <button class="btn" id="mp-reset">Reset zoom</button>
+    </div>
+    <div class="panel"><div class="map" id="map"></div></div>
+    <div class="legend4" id="map-legend"></div>
+  </section>
+
+  <section class="view" id="v-sets" hidden>
+    <div><h1>Sets</h1><p class="lede">What it would cost to buy every single card in a set, month by month, and the cards everyone hopes to pull.</p></div>
+    <div class="sets" id="sets"></div>
+  </section>
+</main>
+
+<footer><div class="wrap" id="foot"></div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script>/*DATA*/</script>
+<script>
+const D = window.DATA;
+const byId = Object.fromEntries(D.cards.map(c => [c.id, c]));
+const setName = Object.fromEntries(D.sets.map(s => [s.id, s.name]));
+const pokeBy = Object.fromEntries(D.pokemon.map(p => [p.dex, p]));
+const enc = id => 'card-' + id.replace(/\./g, 'p');
+const decode = Object.fromEntries(D.cards.map(c => [enc(c.id), c.id]));
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = s => document.querySelector(s);
+const fmt = v => v == null ? '—' : '$' + (v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(2));
+const eur = v => v == null ? '—' : '€' + (v >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(2));
+const pct = v => v == null ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(Math.abs(v) >= 10 ? 0 : 1) + '%';
+const cls = v => v == null ? '' : v >= 0 ? 'up' : 'down';
+const cap = s => s.replace(/(^|-)\w/g, m => m.toUpperCase()).replace(/-/g, ' ');
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const art = c => c.local ? `<img src="${c.local}" alt="${esc(c.name)} card" loading="lazy">` : `<div class="ph">${esc(c.name)}<br>${esc(c.rarity)}</div>`;
+const thumb = c => c.local ? `<img src="${c.local}" alt="" loading="lazy">` : '<div class="mini"></div>';
+const wild = c => c.gap != null && Math.abs(c.gap) > 0.5;  // gaps this large usually mean the two markets list different conditions
+const gapTag = c => !c.gap || wild(c) ? '' : c.gap > 0 ? `<span class="tag eu">EU ${Math.round(c.gap*100)}% cheaper</span>` : `<span class="tag us">US ${Math.round(-c.gap/(1-c.gap)*100)}% cheaper</span>`;
+const med = a => { const s=[...a].sort((x,y)=>x-y); return s.length ? s[Math.floor(s.length/2)] : null; };
+const charts = [];
+function mk(el){
+  for (let i = charts.length - 1; i >= 0; i--) if (!charts[i].getDom().isConnected){ charts[i].dispose(); charts.splice(i, 1); }
+  const ch = echarts.init(el); charts.push(ch); return ch;
+}
+addEventListener('resize', () => charts.forEach(c => !c.isDisposed() && c.resize()));
+function ax(){ return {axisLine:{lineStyle:{color:css('--line')}}, axisLabel:{color:css('--muted'), fontFamily:'IBM Plex Mono'}, splitLine:{lineStyle:{color:css('--line'), opacity:.6}}}; }
+const cardTile = c => `<a class="card" href="#${enc(c.id)}"><div class="art">${art(c)}</div><div class="nm">${esc(c.name)}</div><div class="sub">${esc(setName[c.set])} · ${esc(c.rarity)}</div><div class="pr"><span class="price">${fmt(c.usd)}</span>${gapTag(c)}</div></a>`;
+$('#foot').innerHTML = `Unofficial fan site. Not affiliated with Nintendo, The Pokémon Company, TCGplayer or Cardmarket. US prices: TCGplayer market price (via tcgcsv). Europe prices: Cardmarket trend (via TCGdex), converted at the ECB rate of $${D.fx.rate} per euro on ${D.fx.date}. Pokémon data: PokéAPI. ${D.cards.length} cards in ${D.sets.length} sets, prices as of ${D.built}. Market estimates, not financial advice.`;
+function fillSelect(el, opts, all){ el.innerHTML = `<option value="">${all}</option>` + opts.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join(''); }
+const setOpts = D.sets.map(s => [s.id, s.name]);
+
+/* ---------- Global card search ---------- */
+let gHits = [], gOn = -1;
+function gsearch(q){
+  const t = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!t.length){ $('#gres').hidden = true; return; }
+  gHits = D.cards.filter(c => { const h = `${c.name} ${setName[c.set]} ${c.rarity} ${c.num}`.toLowerCase(); return t.every(w => h.includes(w)); })
+    .sort((a,b) => b.usd - a.usd).slice(0, 12);
+  gOn = -1;
+  $('#gres').innerHTML = gHits.length ? gHits.map((c,i) => `<a class="res" href="#${enc(c.id)}" data-i="${i}">${thumb(c)}<div><b>${esc(c.name)}</b><span>${esc(setName[c.set])} · #${esc(c.num)} · ${esc(c.rarity)}</span></div><span class="price">${fmt(c.usd)}</span></a>`).join('') : '<div class="empty" style="padding:10px">No card matches. Try a Pokémon name or a set, like “151 charizard”.</div>';
+  $('#gres').hidden = false;
+}
+$('#gq').addEventListener('input', e => gsearch(e.target.value));
+$('#gq').addEventListener('focus', e => e.target.value && gsearch(e.target.value));
+$('#gq').addEventListener('keydown', e => {
+  const items = [...document.querySelectorAll('#gres .res')];
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); gOn = Math.max(0, Math.min(items.length-1, gOn + (e.key==='ArrowDown'?1:-1))); items.forEach((x,i)=>x.classList.toggle('on', i===gOn)); }
+  if (e.key === 'Enter' && gHits.length){ location.hash = enc(gHits[Math.max(gOn,0)].id); }
+  if (e.key === 'Escape'){ $('#gres').hidden = true; }
+});
+document.addEventListener('click', e => { if (!e.target.closest('.gsearch') || e.target.closest('.res')) $('#gres').hidden = true; });
+
+/* ---------- Pokemon view ---------- */
+let curDex = 6;
+function renderList(q=''){
+  const list = D.pokemon.filter(p => p.name.includes(q.toLowerCase().trim())).sort((a,b) => q ? a.name.localeCompare(b.name) : b.top - a.top);
+  $('#plist').innerHTML = list.slice(0, 150).map(p => `<button data-dex="${p.dex}" aria-pressed="${p.dex===curDex}"><img src="${p.sprite||''}" alt="">${cap(p.name)}<span class="p mono">${fmt(p.top)}</span></button>`).join('') || '<p class="lede">No Pokémon by that name in these sets.</p>';
+}
+$('#plist').addEventListener('click', e => { const b = e.target.closest('button'); if (b){ curDex = +b.dataset.dex; renderList($('#q').value); renderPokemon(); }});
+$('#q').addEventListener('input', e => renderList(e.target.value));
+let pkSort = 'desc';
+function renderPokemon(){
+  const p = pokeBy[curDex];
+  const cs = D.cards.filter(c => c.dex === curDex).sort((a,b) => pkSort==='desc' ? b.usd - a.usd : a.usd - b.usd);
+  const lo = Math.min(...cs.map(c=>c.usd)), hi = Math.max(...cs.map(c=>c.usd));
+  const statNames = {hp:'HP',attack:'Attack',defense:'Defense','special-attack':'Sp. Atk','special-defense':'Sp. Def',speed:'Speed'};
+  $('#pk-main').innerHTML = `
+    <div class="panel hero">
+      <img src="${p.sprite||''}" alt="${cap(p.name)} sprite">
+      <div>
+        <div class="eyebrow">#${String(p.dex).padStart(4,'0')} · Generation ${p.gen}${p.legendary?' · Legendary':''}</div>
+        <h1>${cap(p.name)}</h1>
+        <div class="chips">${p.types.map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+        <div class="stats">${Object.entries(p.stats).map(([k,v])=>`<div class="stat">${statNames[k]||k}<span class="mono">${v}</span><i style="width:${Math.min(100,v/1.6)}%"></i></div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><span>Cards</span><b>${cs.length}</b></div>
+      <div class="tile"><span>Cheapest</span><b>${fmt(lo)}</b></div>
+      <div class="tile"><span>Most valuable</span><b>${fmt(hi)}</b></div>
+      <div class="tile"><span>Typical card, 12 months</span><b class="${cls(p.chg12)}">${pct(p.chg12)}</b></div>
+    </div>
+    <div class="panel"><h2>Price range</h2><div class="strip" id="strip"></div></div>
+    <div class="panel"><div class="head"><h2>Cards</h2><div class="seg" id="pk-sort"><button data-k="desc" aria-pressed="${pkSort==='desc'}">Most valuable</button><button data-k="asc" aria-pressed="${pkSort==='asc'}">Cheapest</button></div></div>
+      <div class="grid-cards" style="margin-top:14px">${cs.map(cardTile).join('')}</div></div>`;
+  $('#pk-sort').addEventListener('click', e => { const b=e.target.closest('button'); if(b){ pkSort=b.dataset.k; renderPokemon(); }});
+  const ch = mk($('#strip')); const a = ax();
+  ch.setOption({
+    grid:{left:20,right:20,top:10,bottom:30},
+    tooltip:{trigger:'item', formatter:o=>`<b>${esc(o.data.c.name)}</b><br>${esc(setName[o.data.c.set])} · ${esc(o.data.c.rarity)}<br>${fmt(o.data.c.usd)}`},
+    xAxis:{type:'log', min:Math.max(0.01, lo/1.6), max:hi*1.6, ...a, splitLine:{show:false}, axisLabel:{...a.axisLabel, showMinLabel:false, showMaxLabel:false, formatter:v=>'$'+v}},
+    yAxis:{type:'value', show:false, min:-1, max:1},
+    series:[{type:'scatter', symbolKeepAspect:true,
+      data: cs.map((c,i)=>({value:[c.usd, cs.length>8 ? ((i%3)-1)*0.45 : 0], c, symbol:c.local?'image://'+c.local:'roundRect', symbolSize:c.local?[50,70]:[14,20], itemStyle:{color:css('--accent')}})),
+      emphasis:{scale:1.25}}]
+  });
+  ch.on('click', o => location.hash = enc(o.data.c.id));
+}
+
+/* ---------- Card page ---------- */
+let histRange = 0;
+function renderCard(id){
+  const c = byId[id]; const p = pokeBy[c.dex];
+  const siblings = D.cards.filter(x => x.dex && x.dex === c.dex && x.id !== c.id).sort((a,b)=>b.usd-a.usd);
+  const usWin = c.gap && c.gap < 0 && !wild(c), euWin = c.gap && c.gap > 0 && !wild(c);
+  const verdict = c.gap == null ? 'Only one market has a reliable price for this card.' : wild(c) ? 'Prices differ a lot. Compare card condition before buying.' : c.gap === 0 ? 'About the same price in both markets.' : euWin ? `Europe is ${Math.round(c.gap*100)}% cheaper` : `US is ${Math.round(-c.gap/(1-c.gap)*100)}% cheaper`;
+  $('#v-card').innerHTML = `
+    <div class="crumb">${p ? `<a href="#pokemon" data-dex="${c.dex}">${cap(p.name)}</a> · ` : ''}${esc(setName[c.set])} #${esc(c.num)}</div>
+    <div class="cp">
+      <div class="art">${art(c)}</div>
+      <div class="view" style="gap:18px">
+        <div><div class="eyebrow">${esc(setName[c.set])} · ${esc(c.rarity)}</div><h1>${esc(c.name)}</h1></div>
+        <div><div class="big">${fmt(c.usd)}</div><div class="note">TCGplayer market price · ${esc(c.variant.replace(/-/g,' '))}</div>
+          ${c.vars.length > 1 ? `<div class="vars">${c.vars.map(v=>`<span>${esc(v.k.replace(/-/g,' '))} <b>${fmt(v.usd)}</b></span>`).join('')}</div>` : ''}</div>
+        <div class="tiles" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+          <div class="tile"><span>3 months</span><b class="${cls(c.chg3)}">${pct(c.chg3)}</b></div>
+          <div class="tile"><span>12 months</span><b class="${cls(c.chg12)}">${pct(c.chg12)}</b></div>
+          <div class="tile"><span>Tracked since</span><b style="font-size:16px">${Object.keys(c.hist)[0].slice(0,7)}</b></div>
+        </div>
+        <div class="panel view" style="gap:12px">
+          <div class="head"><h3>US vs Europe</h3><span class="verdict ${usWin||euWin?'up':''}">${verdict}</span></div>
+          <div class="compare">
+            <div class="mkt ${usWin?'win':''}"><div class="eyebrow"><span>US · TCGplayer</span></div><b>${fmt(c.usd)}</b><small>market price</small></div>
+            <div class="mkt ${euWin?'win':''}"><div class="eyebrow"><span>Europe · Cardmarket</span></div><b>${eur(c.eur)}</b><small>${c.euUsd!=null?'≈ '+fmt(c.euUsd)+' · trend price':'no price'}</small></div>
+          </div>
+          <div class="note">Converted at $${D.fx.rate} per euro (ECB, ${D.fx.date}). Shipping, fees and import costs are not included.</div>
+        </div>
+        <dl><dt>Artist</dt><dd>${esc(c.artist||'—')}</dd><dt>HP</dt><dd>${c.hp||'—'}</dd>${p?`<dt>Pokémon</dt><dd>${cap(p.name)} · Gen ${p.gen} · ${p.types.join(' / ')}</dd>`:''}</dl>
+      </div>
+    </div>
+    <div class="panel"><div class="head"><h2>Price history</h2><div class="seg" id="hr"><button data-k="6" aria-pressed="${histRange===6}">6M</button><button data-k="12" aria-pressed="${histRange===12}">1Y</button><button data-k="0" aria-pressed="${histRange===0}">All</button></div></div><div class="chart" id="hist"></div><div class="note">TCGplayer market price, ${esc(c.variant.replace(/-/g,' '))} printing, monthly snapshots plus today.</div></div>
+    ${siblings.length ? `<div class="panel"><h2>Other ${cap(p.name)} cards</h2><div class="row-cards" style="margin-top:12px">${siblings.map(cardTile).join('')}</div></div>` : ''}`;
+  $('.crumb a')?.addEventListener('click', () => { curDex = c.dex; });
+  $('#hr').addEventListener('click', e => { const b=e.target.closest('button'); if(b){ histRange=+b.dataset.k; renderCard(id); }});
+  let xs = Object.keys(c.hist), ys = Object.values(c.hist);
+  if (histRange){ const n = histRange + 1; xs = xs.slice(-n); ys = ys.slice(-n); }
+  const ch = mk($('#hist')); const a = ax();
+  ch.setOption({grid:{left:60,right:20,top:16,bottom:30}, tooltip:{trigger:'axis', valueFormatter:fmt},
+    xAxis:{type:'category', data:xs, boundaryGap:false, ...a, axisLabel:{...a.axisLabel, formatter:v=>v.slice(0,7)}},
+    yAxis:{type:'value', scale:true, ...a, axisLabel:{...a.axisLabel, formatter:v=>'$'+v}},
+    series:[{type:'line', data:ys, smooth:.2, symbol:'circle', symbolSize:5, lineStyle:{width:2.5, color:css('--accent')}, itemStyle:{color:css('--accent')},
+      areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:css('--accent-soft')},{offset:1,color:'rgba(0,0,0,0)'}])},
+      markPoint:{symbol:'circle', symbolSize:11, data:[{coord:[xs.length-1, ys[ys.length-1]]}], itemStyle:{color:css('--spark')}, label:{show:false}}}]});
+  scrollTo(0,0);
+}
+
+/* ---------- Movers ---------- */
+let mvKey = 'chg12';
+fillSelect($('#mv-set'), setOpts, 'All sets');
+const rarities = [...new Set(D.cards.map(c=>c.rarity))].sort((a,b)=>med(D.cards.filter(c=>c.rarity===a).map(c=>c.usd))-med(D.cards.filter(c=>c.rarity===b).map(c=>c.usd)));
+fillSelect($('#mv-rar'), rarities.map(r=>[r,r]), 'All rarities');
+function spark(c){
+  const v = Object.values(c.hist); if (v.length < 2) return '<span></span>';
+  const mn = Math.min(...v), mx = Math.max(...v), w=74, h=26;
+  const pts = v.map((y,i) => `${(i/(v.length-1)*w).toFixed(1)},${(h-2-(y-mn)/((mx-mn)||1)*(h-4)).toFixed(1)}`).join(' ');
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="var(--${v[v.length-1]>=v[0]?'up':'down'})" stroke-width="1.6"/></svg>`;
+}
+function renderMovers(){
+  const s = $('#mv-set').value, r = $('#mv-rar').value, min = +$('#mv-min').value, n = +$('#mv-n').value;
+  const pool = D.cards.filter(c => c[mvKey] != null && c.usd >= min && (!s || c.set === s) && (!r || c.rarity === r));
+  const row = c => `<a class="row" href="#${enc(c.id)}">${thumb(c)}<div class="t"><b>${esc(c.name)}</b><span>${esc(setName[c.set])} · ${esc(c.rarity)}</span></div>${spark(c)}<div class="price">${fmt(c.usd)}</div><div class="chg ${cls(c[mvKey])}">${pct(c[mvKey])}</div></a>`;
+  const ups = pool.filter(c=>c[mvKey]>0).sort((a,b)=>b[mvKey]-a[mvKey]).slice(0,n);
+  const dns = pool.filter(c=>c[mvKey]<0).sort((a,b)=>a[mvKey]-b[mvKey]).slice(0,n);
+  $('#mv-up').innerHTML = ups.map(row).join('') || '<div class="empty">No cards went up with these filters.</div>';
+  $('#mv-down').innerHTML = dns.map(row).join('') || '<div class="empty">No cards went down with these filters.</div>';
+}
+$('#mv-win').addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; mvKey=b.dataset.k; [...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed', x===b)); renderMovers(); });
+['#mv-set','#mv-rar','#mv-min','#mv-n'].forEach(s => $(s).addEventListener('change', renderMovers));
+
+/* ---------- Market Map ---------- */
+let mapChart;
+const QUADS = [['Hot','Pricey and still climbing. Buying now means paying peak prices.'],['Cooling off','Expensive but drifting down. Waiting may pay.'],['Rising stars','Cheap but trending up. Where collectors look for early buys.'],['Quiet','Cheap and flat or falling. Easy to complete a collection.']];
+fillSelect($('#mp-set'), setOpts, 'All sets');
+const gens = [...new Set(D.pokemon.map(p=>p.gen))].sort((a,b)=>roman(a)-roman(b));
+function roman(s){ const m={I:1,V:5,X:10}; let t=0; for(let i=0;i<s.length;i++){ const v=m[s[i]], n=m[s[i+1]]||0; t += v<n ? -v : v; } return t; }
+fillSelect($('#mp-gen'), gens.map(g=>[g,'Gen '+g]), 'All generations');
+fillSelect($('#mp-type'), [...new Set(D.pokemon.flatMap(p=>p.types))].sort().map(t=>[t,cap(t)]), 'All types');
+function mapPoints(){
+  const s = $('#mp-set').value, g = $('#mp-gen').value, t = $('#mp-type').value, n = +$('#mp-n').value;
+  let pts = D.pokemon.filter(p => (!g || p.gen === g) && (!t || p.types.includes(t))).map(p => {
+    const cs = D.cards.filter(c => c.dex === p.dex && (!s || c.set === s));
+    if (!cs.length) return null;
+    const ch = cs.filter(c => c.chg12 != null && c.usd >= 1).map(c => c.chg12);
+    return {p, top: Math.max(...cs.map(c=>c.usd)), chg: med(ch), n: cs.length};
+  }).filter(x => x && x.chg != null && x.top > 0).sort((a,b)=>b.top-a.top);
+  return n ? pts.slice(0, n) : pts;
+}
+function renderMap(){
+  const pts = mapPoints();
+  const q = $('#mp-q').value.toLowerCase().trim();
+  const hit = x => q && x.p.name.includes(q);
+  const xm = med(pts.map(x=>x.chg)), ym = med(pts.map(x=>x.top));
+  const order = [[1,1],[0,1],[1,0],[0,0]];
+  $('#map-legend').innerHTML = QUADS.map((qd,i)=>{ const [hx,hy]=order[i]; const k = pts.filter(x=>(x.chg>=xm)==!!hx && (x.top>=ym)==!!hy).length; return `<div><b>${qd[0]} <span class="mono" style="font-weight:400;color:var(--muted)">${k}</span></b>${qd[1]}</div>`; }).join('');
+  if (!mapChart){ mapChart = mk($('#map')); mapChart.on('click', o => { if (o.data?.x){ curDex = o.data.x.p.dex; location.hash = 'pokemon'; renderPokemon(); }}); }
+  const a = ax();
+  const lab = (t, pos) => ({type:'text', ...pos, z:0, silent:true, style:{text:t, fill:css('--muted'), opacity:.8, font:'700 14px "Bricolage Grotesque"'}});
+  const xs = pts.map(x=>x.chg);
+  mapChart.clear();
+  if (!pts.length){ mapChart.setOption({graphic:[lab('No Pokémon match these filters.',{left:'center',top:'middle'})]}); return; }
+  mapChart.setOption({
+    grid:{left:64,right:24,top:24,bottom:56},
+    tooltip:{trigger:'item', formatter:o=>{const x=o.data.x; return `<b>${cap(x.p.name)}</b><br>Top card ${fmt(x.top)} · ${x.n} cards<br>12 months ${pct(x.chg)}`;}},
+    dataZoom:[{type:'inside', xAxisIndex:0, filterMode:'none'},{type:'inside', yAxisIndex:0, filterMode:'none'}],
+    xAxis:{type:'value', name:'12-month price change (typical card)', nameLocation:'middle', nameGap:34, nameTextStyle:{color:css('--muted')}, min:Math.max(-1, Math.min(...xs)-0.05), max:Math.min(Math.max(...xs)+0.1, 6), ...a, axisLabel:{...a.axisLabel, formatter:v=>pct(v)}},
+    yAxis:{type:'log', name:'Most valuable card (USD)', nameTextStyle:{color:css('--muted')}, ...a, axisLabel:{...a.axisLabel, formatter:v=>'$'+v}},
+    graphic:[lab(QUADS[0][0],{right:34,top:30}), lab(QUADS[1][0],{left:76,top:30}), lab(QUADS[2][0],{right:34,bottom:66}), lab(QUADS[3][0],{left:76,bottom:66})],
+    series:[{type:'scatter',
+      data: pts.map(x=>({value:[x.chg, x.top], x, symbol: x.p.sprite?'image://'+x.p.sprite:'circle', symbolSize: hit(x) ? 64 : 40,
+        itemStyle:{opacity: q && !hit(x) ? .18 : 1},
+        label:{show: !!hit(x), position:'top', formatter: cap(x.p.name), color:css('--ink'), fontWeight:600, fontFamily:'IBM Plex Sans'}})),
+      markLine:{silent:true, symbol:'none', label:{show:false}, lineStyle:{color:css('--muted'), type:'dashed', opacity:.6}, data:[{xAxis:xm},{yAxis:ym}]},
+      emphasis:{scale:1.4}}]
+  });
+}
+['#mp-set','#mp-gen','#mp-type','#mp-n'].forEach(s => $(s).addEventListener('change', renderMap));
+$('#mp-q').addEventListener('input', renderMap);
+$('#mp-reset').addEventListener('click', () => mapChart && mapChart.dispatchAction({type:'dataZoom', start:0, end:100}));
+
+/* ---------- Sets ---------- */
+function renderSets(){
+  $('#sets').innerHTML = D.sets.map(s => {
+    const xs = Object.keys(s.series), ys = Object.values(s.series);
+    const chg = ys.length > 1 ? ys[ys.length-1]/ys[0]-1 : null;
+    return `<div class="panel setc view" style="gap:12px">
+      <div class="head"><div><div class="eyebrow">${esc(s.serie)} · released ${s.releaseDate}</div><h3>${esc(s.name)}</h3></div>
+      <div style="text-align:right"><div class="note">Every card, today</div><div class="big" style="font-size:22px">${fmt(s.value)}</div><div class="${cls(chg)} mono" style="font-size:12px">${chg!=null?pct(chg)+' since '+xs[0].slice(0,7):''}</div></div></div>
+      <div class="chart" data-set="${s.id}"></div>
+      <div><div class="eyebrow" style="margin-bottom:6px">Most valuable cards</div><div class="chase">${s.chase.map(id=>{const c=byId[id]; return `<a class="art" href="#${enc(id)}" title="${esc(c.name)} · ${fmt(c.usd)}">${c.local?`<img src="${c.local}" alt="${esc(c.name)}" loading="lazy">`:''}</a>`;}).join('')}</div></div>
+    </div>`;}).join('');
+  D.sets.forEach(s => {
+    const ch = mk(document.querySelector(`[data-set="${s.id}"]`)); const a = ax();
+    ch.setOption({grid:{left:52,right:8,top:8,bottom:22}, tooltip:{trigger:'axis', valueFormatter:fmt},
+      xAxis:{type:'category', data:Object.keys(s.series), boundaryGap:false, ...a, axisLabel:{...a.axisLabel, formatter:v=>v.slice(2,7)}},
+      yAxis:{type:'value', scale:true, ...a, splitNumber:3, axisLabel:{...a.axisLabel, formatter:v=>'$'+(v>=1000?Math.round(v/1000)+'k':v)}},
+      series:[{type:'line', data:Object.values(s.series), symbol:'none', smooth:.2, lineStyle:{width:2, color:css('--accent')}, areaStyle:{color:css('--accent-soft'), opacity:.7}}]});
+  });
+}
+
+/* ---------- Router ---------- */
+const VIEWS = ['pokemon','movers','map','sets'];
+const done = {};
+function route(){
+  const h = location.hash.slice(1);
+  const cardId = decode[h];
+  const v = cardId ? 'card' : VIEWS.includes(h) ? h : 'pokemon';
+  ['pokemon','card','movers','map','sets'].forEach(x => $('#v-'+x).hidden = x !== v);
+  document.querySelectorAll('#nav a').forEach(a => a.setAttribute('aria-current', a.getAttribute('href') === '#'+v ? 'page' : 'false'));
+  if (v === 'card') renderCard(cardId);
+  if (v === 'pokemon'){ renderList($('#q').value); renderPokemon(); }
+  if (v === 'movers' && !done.movers){ renderMovers(); done.movers = 1; }
+  if (v === 'map') renderMap();
+  if (v === 'sets' && !done.sets){ renderSets(); done.sets = 1; }
+  $('#gres').hidden = true;
+  requestAnimationFrame(() => charts.forEach(c => !c.isDisposed() && c.resize()));
+}
+addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>

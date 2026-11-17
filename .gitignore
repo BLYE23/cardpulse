@@ -1,0 +1,19 @@
+# Raw API data and caches (rebuild with pipeline/collect.py)
+data/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
