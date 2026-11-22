@@ -193,6 +193,7 @@ cardpulse/
 │   ├── index.html
 │   └── img/            # card images for the most valuable cards
 ├── data/               # raw API data and caches (git-ignored)
+├── docs/specs/         # development specs: shared contracts (00) and one spec per module
 ├── .github/            # pull request and issue templates
 ├── CONTRIBUTING.md     # team workflow: branches, pull requests, reviews
 ├── requirements.txt
