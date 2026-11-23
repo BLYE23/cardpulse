@@ -2,6 +2,7 @@
 
 Usage (from the repo root):  python pipeline/collect.py
 Writes to data/ (git-ignored). API responses are cached in data/_cache, so reruns resume.
+Each tcgcsv archive is downloaded once: its prices for our groups are kept in data/_cache/archive/.
 """
 import json, time, os, io, sys, urllib.request, datetime, shutil
 from pathlib import Path
@@ -80,8 +81,16 @@ d = datetime.date(2024, 2, 8)
 today = datetime.date.today()
 while d <= today:
     ds = d.isoformat()
+    cached = f"{CACHE}/archive/{ds}.json"  # {"pid|subtype": market} for our groups, one file per archive day
+    if os.path.exists(cached):
+        for k, v in json.load(open(cached)).items():
+            hist.setdefault(k, {})[ds] = v
+        print("archive", ds, "cached", len(hist), flush=True)
+        d = (d.replace(day=1) + datetime.timedelta(days=32)).replace(day=8)
+        continue
     b = get(f"https://tcgcsv.com/archive/tcgplayer/prices-{ds}.ppmd.7z", raw=True)
     if b:
+        day = {}
         tmp = f"{OUT}/_arc"
         import shutil; shutil.rmtree(tmp, ignore_errors=True)
         with py7zr.SevenZipFile(io.BytesIO(b)) as z:
@@ -93,7 +102,11 @@ while d <= today:
             if not os.path.isfile(pth): continue
             for r in json.load(open(pth)).get("results", []):
                 if r.get("marketPrice") is not None:
-                    hist.setdefault(f"{r['productId']}|{r['subTypeName']}", {})[ds] = r["marketPrice"]
+                    day[f"{r['productId']}|{r['subTypeName']}"] = r["marketPrice"]
+        os.makedirs(os.path.dirname(cached), exist_ok=True)
+        json.dump(day, open(cached, "w"))
+        for k, v in day.items():
+            hist.setdefault(k, {})[ds] = v
     print("archive", ds, "ok" if b else "missing", len(hist), flush=True)
     time.sleep(1)
     d = (d.replace(day=1) + datetime.timedelta(days=32)).replace(day=8)
