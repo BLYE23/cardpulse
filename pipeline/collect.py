@@ -30,7 +30,11 @@ def get(url, raw=False):
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
                 b = r.read()
                 if raw: return b
-                d = json.loads(b); json.dump(d, open(key, "w")); return d
+                d = json.loads(b)
+                with open(key + ".tmp", "w") as f:  # write then rename, as for the archive cache
+                    json.dump(d, f)
+                os.replace(key + ".tmp", key)
+                return d
         except urllib.error.HTTPError as e:
             if e.code == 404: return None
             print("retry", url, e, flush=True); time.sleep(min(60, 3 * 2 ** i))
