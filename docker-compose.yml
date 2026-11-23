@@ -1,0 +1,17 @@
+services:
+  pipeline:
+    build: .
+    image: cardpulse-pipeline:0.1
+    volumes:
+      - ./data:/app/data
+      - ./site:/app/site
+    # default CMD runs pipeline/run_all.py
+
+  web:
+    image: python:3.12-slim-bookworm
+    working_dir: /srv
+    command: ["python", "-m", "http.server", "8000", "--directory", "/srv/site", "--bind", "0.0.0.0"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./site:/srv/site:ro
