@@ -3,8 +3,8 @@
 **A price tracker for Pokémon Trading Card Game (TCG) players and collectors.**
 
 CardPulse answers the questions players ask before they buy, sell or trade a card:
-*What is my card worth? Is it going up or down? Is it cheaper in the US or in Europe?
-Which version of my favorite Pokémon can I afford?*
+_What is my card worth? Is it going up or down? Is it cheaper in the US or in Europe?
+Which version of my favorite Pokémon can I afford?_
 
 It combines three free public APIs: card data, US and European market prices, and
 Pokémon species data. The result is a single website with price history going back to February 2024.
@@ -31,11 +31,11 @@ Pokémon species data. The result is a single website with price history going b
 
 ## Who it is for
 
-| User | What they want |
-|---|---|
-| **Collectors** | Track what their cards are worth, find the right moment to buy a chase card, and know what it costs to complete a set. |
-| **Casual fans** | Find an affordable card of their favorite Pokémon and see why two cards of the same Pokémon have very different prices. |
-| **Traders and buyers** | Spot cards that are rising or falling, and compare US and European prices before ordering. |
+| User                   | What they want                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Collectors**         | Track what their cards are worth, find the right moment to buy a chase card, and know what it costs to complete a set.  |
+| **Casual fans**        | Find an affordable card of their favorite Pokémon and see why two cards of the same Pokémon have very different prices. |
+| **Traders and buyers** | Spot cards that are rising or falling, and compare US and European prices before ordering.                              |
 
 A quick note on the domain: one Pokémon (for example Charizard) is printed on many
 different cards. Each card has a set, a rarity, artwork and a printing (normal, holofoil,
@@ -48,15 +48,18 @@ around that layering: **Pokémon → card → printing → market price over tim
 ## Features and the player needs they solve
 
 ### 1. Global card search
+
 A search box on every page. Search by card name, set, rarity or card number, alone or
 combined (for example `151 charizard` or `umbreon vmax`). Results show a thumbnail and the
 current price; arrow keys and Enter work.
 
-**Player need:** *"I have this card in my hand. What is it worth?"* This is the most common
+**Player need:** _"I have this card in my hand. What is it worth?"_ This is the most common
 question, and it should take one search to answer.
 
 ### 2. Card detail page
+
 Every card has its own page with a shareable link:
+
 - large card image, set, card number, rarity, artist and HP
 - current TCGplayer market price, plus the price of each printing when there are several
 - 3-month and 12-month price change, and when tracking started
@@ -64,43 +67,51 @@ Every card has its own page with a shareable link:
 - **US vs Europe comparison** (see feature 3)
 - links to the other cards of the same Pokémon
 
-**Player need:** *"Should I buy or sell this card now?"* Price history shows whether today's
+**Player need:** _"Should I buy or sell this card now?"_ Price history shows whether today's
 price is a peak, a dip or normal, and the link can be shared with a trading partner.
 
 ### 3. US vs Europe price comparison
+
 Cards carry a tag such as **"EU 23% cheaper"** or **"US 18% cheaper"**. The card page puts
 the TCGplayer (US, USD) price next to the Cardmarket (Europe, EUR) price and says which market is cheaper.
+
 - Euros are converted to dollars at the European Central Bank reference rate of the build day.
 - Only the same printing is compared (the standard or holofoil version against Cardmarket's base trend price).
 - Gaps under 10% count as "about the same price". Gaps over 50% are not tagged, because they usually mean the
   two markets list different card conditions. The card page asks the user to compare condition instead.
 - Shipping, fees and import costs are not included, and the page says so.
 
-**Player need:** *"Where should I buy?"* Many players can order from either market, and the
+**Player need:** _"Where should I buy?"_ Many players can order from either market, and the
 difference on a single card can be large.
 
 ### 4. Pokémon page
+
 Pick a Pokémon (searchable list, sorted by its most valuable card) to see:
+
 - sprite, generation, types and in-game base stats (from PokéAPI)
 - number of cards, cheapest card, most valuable card, and the 12-month change of a typical card
 - **price range strip**: all of its cards placed on one price axis, from cheapest to most valuable
 - every card as a grid, sorted by most valuable or cheapest, with US/EU tags
 
-**Player need:** *"I love Umbreon. Which Umbreon card fits my budget?"* Fans usually collect by
+**Player need:** _"I love Umbreon. Which Umbreon card fits my budget?"_ Fans usually collect by
 Pokémon, not by set. This page shows the entry price and the top end side by side.
 
 ### 5. Movers
+
 The biggest gainers and fallers, each with a sparkline:
+
 - time window: 12 months or 3 months
 - filters: set, rarity, minimum current price ($1, $5, $20, $100), and list length (12, 25, 50)
 - every row opens the card page
 
-**Player need:** *"What is hot right now, and did anything I own just jump?"* Collectors also
+**Player need:** _"What is hot right now, and did anything I own just jump?"_ Collectors also
 use fallers to time purchases. In the current data, newly released sets drop sharply in the
 months after release while 1999 Base Set cards keep rising.
 
 ### 6. Market Map
+
 A quadrant chart where each sprite is a Pokémon:
+
 - **x-axis:** 12-month price change of its typical card
 - **y-axis:** its most valuable card today (log scale)
 - four zones: **Hot** (pricey and climbing), **Cooling off** (pricey but falling: waiting may pay),
@@ -109,14 +120,15 @@ A quadrant chart where each sprite is a Pokémon:
   recalculated from that set's cards only.
 - highlight a Pokémon by name, zoom by dragging or scrolling, click a sprite to open its Pokémon page
 
-**Player need:** *"Buy now or wait?"* The map gives a one-screen overview of the market, and the
+**Player need:** _"Buy now or wait?"_ The map gives a one-screen overview of the market, and the
 filters keep it readable.
 
 ### 7. Sets
+
 For each set: release date, the **total cost of buying every single card in the set** today,
 how that total changed month by month, and the set's six most valuable cards.
 
-**Player need:** *"What will it cost to complete this set, and which cards make it expensive?"*
+**Player need:** _"What will it cost to complete this set, and which cards make it expensive?"_
 It also shows which sets as a whole are gaining value.
 
 ---
@@ -124,10 +136,12 @@ It also shows which sets as a whole are gaining value.
 ## Quick start
 
 ### View the site
+
 The built site is committed in `site/`. Open `site/index.html` in a browser. An internet
 connection is needed for the chart library and fonts.
 
 ### Rebuild with fresh data
+
 Requires Python 3.12.
 
 ```bash
@@ -142,18 +156,84 @@ python pipeline/build.py     # transform data/ into site/index.html + site/img/
 `collect.py` caches every API response in `data/_cache/`, so an interrupted run resumes
 where it stopped. `data/` is git-ignored. Each person builds their own copy.
 
+### Run with Docker
+
+Install and start Docker Desktop. Run these commands from the repository root.
+
+#### Build and run the pipeline
+
+```bash
+docker compose build pipeline
+docker compose run --rm pipeline
+```
+
+The first collection may take approximately 20–40 minutes because it downloads
+historical data. Later runs reuse cached data.
+
+Outputs are stored on your computer in `data/` and `site/`, including
+`data/cardpulse.db` when the SQL module is available.
+
+The full pipeline requires the SQL and DAG modules, including
+`pipeline/run_all.py`. Until those modules are integrated, test the existing
+collection and website build with:
+
+```bash
+docker compose run --rm pipeline sh -c "python pipeline/collect.py && python pipeline/build.py"
+```
+
+This temporary command does not create or validate the SQL database.
+
+#### View the website
+
+```bash
+docker compose up -d web
+```
+
+Open http://localhost:8000. The service serves the existing contents of `site/`.
+
+#### Start Airflow
+
+```bash
+docker compose --profile airflow up -d --build airflow
+```
+
+Open http://localhost:8080. Log in as `admin` using the generated password
+shown in the startup logs:
+
+```bash
+docker compose logs airflow | grep -i password
+```
+
+Do not commit the password. Each local installation generates its own credentials.
+
+The `cardpulse_daily` DAG becomes available once the DAG module and its
+dependencies are integrated.
+
+On Linux, run `export AIRFLOW_UID=$(id -u)` before starting Airflow.
+Docker Desktop on macOS and Windows does not require this setting.
+
+#### Stop the services
+
+```bash
+docker compose --profile airflow down
+```
+
+Files in `data/` and `site/` remain on your computer. Airflow metadata and logs
+persist in the `airflow-home` Docker volume. Adding `-v` to the shutdown command
+deletes that volume.
+
 ---
 
 ## Data sources
 
 All sources are free and need no API key.
 
-| Source | What we use | Notes |
-|---|---|---|
-| [TCGdex](https://tcgdex.dev) | Sets, cards (name, rarity, HP, artist, Pokédex number, images) and current prices from **Cardmarket (EUR)** and **TCGplayer (USD)** | Prices are embedded in each card response. Updated daily. |
-| [tcgcsv](https://tcgcsv.com) | Daily archive of **TCGplayer** prices since 2024-02-08, used for price history | Requests must send a custom `User-Agent`. Download each archive once (one-time backfill), not repeatedly. |
-| [PokéAPI](https://pokeapi.co) | Species: types, generation, base stats, legendary flag, sprites | Fair-use policy. Responses are cached locally. |
-| [Frankfurter](https://frankfurter.dev) | EUR→USD reference rate (European Central Bank) | One call per build |
+| Source                                 | What we use                                                                                                                         | Notes                                                                                                     |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [TCGdex](https://tcgdex.dev)           | Sets, cards (name, rarity, HP, artist, Pokédex number, images) and current prices from **Cardmarket (EUR)** and **TCGplayer (USD)** | Prices are embedded in each card response. Updated daily.                                                 |
+| [tcgcsv](https://tcgcsv.com)           | Daily archive of **TCGplayer** prices since 2024-02-08, used for price history                                                      | Requests must send a custom `User-Agent`. Download each archive once (one-time backfill), not repeatedly. |
+| [PokéAPI](https://pokeapi.co)          | Species: types, generation, base stats, legendary flag, sprites                                                                     | Fair-use policy. Responses are cached locally.                                                            |
+| [Frankfurter](https://frankfurter.dev) | EUR→USD reference rate (European Central Bank)                                                                                      | One call per build                                                                                        |
 
 We looked at the Pokémon TCG API (pokemontcg.io). It is now part of Scrydex, its price history
 is paid, and its free prices were stale when we checked, so we use TCGdex instead.
@@ -219,6 +299,7 @@ cardpulse/
 ## Roadmap
 
 Planned, roughly in order:
+
 1. Store data in a database (SQLite) instead of JSON files.
 2. Schedule the pipeline as a daily Airflow DAG, and switch history from monthly to daily snapshots.
 3. Expand to more sets.

@@ -1,0 +1,38 @@
+services:
+  pipeline:
+    build: .
+    image: cardpulse-pipeline:0.1
+    volumes:
+      - ./data:/app/data
+      - ./site:/app/site
+
+  web:
+    image: python:3.12-slim-bookworm
+    working_dir: /srv
+    command: ["python", "-m", "http.server", "8000", "--directory", "/srv/site", "--bind", "0.0.0.0"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./site:/srv/site:ro
+
+  airflow:
+    profiles: ["airflow"]
+    build:
+      context: .
+      dockerfile: docker/airflow.Dockerfile
+    image: cardpulse-airflow:0.1
+    command: ["standalone"]
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      CARDPULSE_HOME: /opt/cardpulse
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/cardpulse/dags
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "30"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/opt/cardpulse
+      - airflow-home:/opt/airflow
+
+volumes:
+  airflow-home:
