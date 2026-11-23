@@ -104,7 +104,9 @@ while d <= today:
                 if r.get("marketPrice") is not None:
                     day[f"{r['productId']}|{r['subTypeName']}"] = r["marketPrice"]
         os.makedirs(os.path.dirname(cached), exist_ok=True)
-        json.dump(day, open(cached, "w"))
+        with open(cached + ".tmp", "w") as f:  # write then rename, so an interrupted run never leaves a partial file
+            json.dump(day, f)
+        os.replace(cached + ".tmp", cached)
         for k, v in day.items():
             hist.setdefault(k, {})[ds] = v
     print("archive", ds, "ok" if b else "missing", len(hist), flush=True)
