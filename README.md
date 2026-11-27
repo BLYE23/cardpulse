@@ -280,6 +280,20 @@ cardpulse/
 └── README.md
 ```
 
+### Database
+
+The SQLite database is generated locally at `data/cardpulse.db` (git-ignored).
+
+- `sets` — Pokémon TCG set metadata and TCGplayer group IDs.
+- `pokemon` — Pokédex identifiers, types, and base stats.
+- `cards` — individual TCG cards and their primary printings.
+- `card_printings` — normalized printings mapped to TCGplayer products.
+- `price_observations` — dated US/EU prices by card and printing.
+- `fx_rates` — EUR-to-USD exchange rates.
+- `pipeline_runs` — pipeline execution status and timing.
+- `pipeline_steps` — individual pipeline step results.
+- `data_quality_results` — persisted SQL validation results.
+
 ---
 
 ## Known limitations
