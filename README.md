@@ -222,6 +222,52 @@ Files in `data/` and `site/` remain on your computer. Airflow metadata and logs
 persist in the `airflow-home` Docker volume. Adding `-v` to the shutdown command
 deletes that volume.
 
+### Pipeline steps
+
+`pipeline/steps.py` holds one ordered list of steps. Both runners use it, so they always
+run the same steps in the same order:
+
+- Airflow: the `cardpulse_daily` DAG (one task per step, plus `start_run` and `finish_run`).
+- Without Airflow: `python pipeline/run_all.py`, or `docker compose run --rm pipeline`.
+
+| # | Step | Script | What it does |
+| - | ---- | ------ | ------------ |
+| 1 | `collect_reference` | `pipeline/collect.py` | Reference data: TCGdex cards and sets, PokéAPI species, tcgcsv price history. **Skipped** when `data/tcgdex.json`, `data/pokeapi.json` and `data/history.json` exist (set `CARDPULSE_FORCE_COLLECT=1` to run it anyway). |
+| 2 | `snapshot_prices` | `pipeline/snapshot_prices.py` | Today's prices (TCGplayer via tcgcsv, Cardmarket via TCGdex, EUR→USD via Frankfurter) into `data/snapshots/<UTC date>/`, with `_SUCCESS` written last. Skips if today's folder is already complete. |
+| 3 | `load_db` | `pipeline/load_db.py` | Loads the reference data and every complete snapshot into `data/cardpulse.db` and recreates the views. |
+| 4 | `validate` | `pipeline/validate.py` | Runs the data quality checks in `sql/checks.sql`. A failed `error` check exits 2; `warn` checks never fail the run. |
+| 5 | `build_site` | `pipeline/build.py` | Rebuilds `site/index.html` and `site/img/`. |
+
+**When a step fails**, the run stops there and the later steps do not run, so a failed
+check never publishes a website built from bad data. `run_all.py` exits with the failed
+step's exit code (2 for a failed check). In Airflow, a failed task is retried once after
+10 minutes; if it fails again, the later tasks are marked `upstream_failed`,
+`finish_run` still records the result, and the DAG run is shown as failed.
+
+**Run records** are kept in the database:
+
+- `pipeline_runs`: one row per run (`run_id`, `trigger` = `airflow` or `run_all`,
+  start and end time, `status`).
+- `pipeline_steps`: one row per step and run (start and end time, `duration_s`, `status` =
+  `success`, `failed` or `skipped`, and the last 500 characters of stderr on failure).
+- `data_quality_results`: the result of every check in every run.
+
+```sql
+SELECT step, status, ROUND(duration_s, 1) AS seconds FROM pipeline_steps
+WHERE run_id = (SELECT run_id FROM pipeline_runs ORDER BY started_at DESC LIMIT 1);
+```
+
+**Schedule:** `30 21 * * *` in UTC, every day at 21:30 UTC, about 90 minutes after tcgcsv's
+daily refresh (around 20:00 UTC). In Chicago that is **3:30 pm** in winter (CST, UTC−6,
+early November to mid-March) and **4:30 pm** in summer (CDT, UTC−5). Airflow runs the DAG
+only while Docker and the Airflow container are running. Days the computer was off are
+not run later (`catchup=False`); the next run simply adds that day's snapshot.
+
+A snapshot is named after the **UTC date** of the run. A run started by hand between
+00:00 and 20:00 UTC (6 pm to 2 pm the next day in Chicago, winter time) still gets the
+previous day's tcgcsv prices but stores them under the new date, and the scheduled run
+that day then skips its snapshot. Trigger manual runs after 20:00 UTC when possible.
+
 ---
 
 ## Data sources
