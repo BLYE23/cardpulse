@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS price_observations (
     price_date  TEXT NOT NULL,                      -- YYYY-MM-DD
     price       REAL NOT NULL CHECK (price > 0),
     currency    TEXT NOT NULL CHECK (currency IN ('USD', 'EUR')),
-    source      TEXT NOT NULL CHECK (source IN ('tcgcsv_daily', 'tcgcsv_archive', 'tcgdex')),
+    source      TEXT NOT NULL CHECK (source IN ('tcgcsv_daily', 'tcgcsv_archive', 'tcgcsv_archive_daily', 'tcgdex')),
     loaded_at   TEXT NOT NULL,                      -- ISO 8601 UTC
     PRIMARY KEY (card_id, printing, market, price_date),
     FOREIGN KEY (card_id, printing) REFERENCES card_printings(card_id, printing)
