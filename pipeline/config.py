@@ -35,6 +35,7 @@ GAP_WILD_THRESHOLD = 0.50  # |gap| above this is flagged "compare condition", no
 RANGE_LOW_POS = 0.20       # 12-month range position <= this -> "low"
 RANGE_HIGH_POS = 0.80      # 12-month range position >= this -> "high"
 SET_VALUE_MIN_COVERAGE = 0.60  # a set-value point needs prices for at least 60% of the set's cards
+CHG_7D_MAX_LOOKBACK_DAYS = 14  # 7-day change compares with the latest price 7 to 14 days before as-of
 
 
 def norm_printing(name: str) -> str:

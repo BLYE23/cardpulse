@@ -89,6 +89,7 @@ lead commits rebuilt `site/` files (see CONTRIBUTING.md).
 | `data/tcgdex.json` | `{"sets": [{"id","name","releaseDate","serie","logo"}], "cards": [<full TCGdex card object> + "_set": <set id>]}`. Card fields used: `id, localId, name, category, rarity, hp, illustrator, stage, dexId, image, pricing` |
 | `data/pokeapi.json` | `{"<dex id as string>": {"id", "name", "stats": {"hp","attack","defense","special-attack","special-defense","speed"}, "types": [..], "sprite", "generation": "generation-i", "legendary", "mythical", "capture_rate"}}` |
 | `data/history.json` | `{"<productId>|<subTypeName>": {"YYYY-MM-DD": marketPrice}}`. tcgcsv archive, one point per month (the 8th) since 2024-02-08. Contains products outside our cards; ignore those. |
+| `data/history_daily.json` | Same shape as `history.json`: tcgcsv **daily** archives for one fixed week (2026-11-20 to 2026-11-27), a one-time backfill for the 7-day change (issue #12). |
 | `data/fx.json` | `{"amount": 1.0, "base": "EUR", "date": "YYYY-MM-DD", "rates": {"USD": <float>}}` (written by `build.py` today) |
 
 TCGdex price blocks inside each card:

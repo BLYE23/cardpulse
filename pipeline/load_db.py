@@ -27,10 +27,12 @@ ON CONFLICT (card_id, printing, market, price_date) DO UPDATE SET
 WHERE (CASE excluded.source
            WHEN 'tcgcsv_daily' THEN 3
            WHEN 'tcgcsv_archive' THEN 2
+           WHEN 'tcgcsv_archive_daily' THEN 2
            ELSE 1 END)
    >= (CASE price_observations.source
            WHEN 'tcgcsv_daily' THEN 3
            WHEN 'tcgcsv_archive' THEN 2
+           WHEN 'tcgcsv_archive_daily' THEN 2
            ELSE 1 END)
 """
 
@@ -224,14 +226,18 @@ def load_prices(conn, cards, product_index, by_card):
     }
 
     with conn:
-        history_path = config.DATA_DIR / "history.json"
-        if history_path.exists():
+        # history_daily.json: one-time backfill of tcgcsv daily archives (issue #12).
+        for name, source in (("history.json", "tcgcsv_archive"),
+                             ("history_daily.json", "tcgcsv_archive_daily")):
+            history_path = config.DATA_DIR / name
+            if not history_path.exists():
+                continue
             for key, dates in read_json(history_path).items():
                 if "|" not in key:
                     continue
                 pid, subtype = key.split("|", 1)
                 for day, amount in dates.items():
-                    from_tcgcsv(pid, subtype, day, amount, "tcgcsv_archive")
+                    from_tcgcsv(pid, subtype, day, amount, source)
 
         for card in cards:
             cid = card["id"]

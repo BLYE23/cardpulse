@@ -96,12 +96,15 @@ base AS (
               AND h.price_date >= date(a.as_of_date, 'start of month', '-12 months')
             ORDER BY h.price_date ASC LIMIT 1
         ) AS old_12m,
+        -- 7-day change: latest observation at least 7 days before as_of_date,
+        -- so one missed daily run does not blank the value. Looking back at most
+        -- 14 days (CHG_7D_MAX_LOOKBACK_DAYS) keeps a monthly point from posing as a week.
         (
             SELECT h.price FROM v_card_history AS h
             WHERE h.card_id = c.card_id
-              AND h.price_date BETWEEN date(a.as_of_date, '-7 days')
-                                   AND date(a.as_of_date, '-7 days', '+2 days')
-            ORDER BY h.price_date ASC LIMIT 1
+              AND h.price_date <= date(a.as_of_date, '-7 days')
+              AND h.price_date >= date(a.as_of_date, '-14 days')
+            ORDER BY h.price_date DESC LIMIT 1
         ) AS old_7d
     FROM cards AS c
     CROSS JOIN v_as_of AS a

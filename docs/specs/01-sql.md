@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS price_observations (
     price_date  TEXT NOT NULL,                      -- YYYY-MM-DD
     price       REAL NOT NULL CHECK (price > 0),
     currency    TEXT NOT NULL CHECK (currency IN ('USD', 'EUR')),
-    source      TEXT NOT NULL CHECK (source IN ('tcgcsv_daily', 'tcgcsv_archive', 'tcgdex')),
+    source      TEXT NOT NULL CHECK (source IN ('tcgcsv_daily', 'tcgcsv_archive', 'tcgcsv_archive_daily', 'tcgdex')),
     loaded_at   TEXT NOT NULL,                      -- ISO 8601 UTC
     PRIMARY KEY (card_id, printing, market, price_date),
     FOREIGN KEY (card_id, printing) REFERENCES card_printings(card_id, printing)
@@ -155,13 +155,14 @@ exception: print the error, exit 1. If a required input file is missing (`data/t
 | `cards` | `tcgdex.json["cards"]` with `_set` in `config.SETS` | `card_id=id, set_id=_set, local_id=localId, name, category, rarity, hp` (int or NULL), `illustrator, stage, image_url=image`, `dex_id = dexId[0]` if present **and** in `pokemon`, else NULL; `primary_printing` per 00-architecture §3 |
 | `card_printings` | each card's `pricing.tcgplayer` entries that are objects with a `productId` | `printing=norm_printing(key)`, `tcgplayer_product_id=productId` |
 | `price_observations` (archive) | `history.json` | Split key at the first `|` into `productId` and `subTypeName`. Join `(int(productId), norm_printing(subTypeName))` to `card_printings`. Unmatched keys are skipped (they are other products). Each `date: price` with price > 0 → `market='tcgplayer', currency='USD', source='tcgcsv_archive'` |
+| `price_observations` (daily archive) | `history_daily.json` (optional, issue #12) | Same as the archive row, `source='tcgcsv_archive_daily'` |
 | `price_observations` (TCGdex, TCGplayer) | each card's `pricing.tcgplayer.<printing>.marketPrice` > 0 | `price_date = pricing.tcgplayer.updated[:10]`, `market='tcgplayer', currency='USD', source='tcgdex'` |
 | `price_observations` (TCGdex, Cardmarket) | each card's `pricing.cardmarket` | `trend` > 0 → printing = card's `primary_printing` (skip if NULL). `trend-holo` > 0 → printing `'reverse-holofoil'` **only if** the card has that printing in `card_printings`. `price_date = pricing.cardmarket.updated[:10]`, `market='cardmarket', currency='EUR', source='tcgdex'` |
 | `price_observations` (snapshots) | every `data/snapshots/<date>/` that has `_SUCCESS` | `tcgplayer.json`: each row in every group, join like the archive, `price=marketPrice` (skip NULL / ≤ 0), `source='tcgcsv_daily'`, `price_date=<date>`. `cardmarket.json`: same rules as the TCGdex Cardmarket row above, but `price_date=<date>` |
 | `fx_rates` | `data/fx.json` and each snapshot `fx.json` | `rate_date=date, base, quote='USD', rate=rates.USD` |
 
 **Conflict rule for `price_observations`** (same `card_id, printing, market, price_date`): keep the
-row from the higher-priority source. Priority: `tcgcsv_daily` (3) > `tcgcsv_archive` (2) > `tcgdex` (1).
+row from the higher-priority source. Priority: `tcgcsv_daily` (3) > `tcgcsv_archive` = `tcgcsv_archive_daily` (2) > `tcgdex` (1).
 Equal priority: the newer load wins. Implement with:
 
 ```sql
@@ -169,8 +170,8 @@ INSERT INTO price_observations (card_id, printing, market, price_date, price, cu
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (card_id, printing, market, price_date) DO UPDATE SET
     price = excluded.price, currency = excluded.currency, source = excluded.source, loaded_at = excluded.loaded_at
-WHERE (CASE excluded.source WHEN 'tcgcsv_daily' THEN 3 WHEN 'tcgcsv_archive' THEN 2 ELSE 1 END)
-   >= (CASE price_observations.source WHEN 'tcgcsv_daily' THEN 3 WHEN 'tcgcsv_archive' THEN 2 ELSE 1 END);
+WHERE (CASE excluded.source WHEN 'tcgcsv_daily' THEN 3 WHEN 'tcgcsv_archive' THEN 2 WHEN 'tcgcsv_archive_daily' THEN 2 ELSE 1 END)
+   >= (CASE price_observations.source WHEN 'tcgcsv_daily' THEN 3 WHEN 'tcgcsv_archive' THEN 2 WHEN 'tcgcsv_archive_daily' THEN 2 ELSE 1 END);
 ```
 
 **Summary output:** last line of stdout is one JSON object:
@@ -202,7 +203,7 @@ price charts and set values.
 | `gap` | NULL if `eu_usd` is NULL or `usd < 1.0` or `eu_usd < 1.0` (GAP_MIN_USD). Else `g = 1 - eu_usd / usd`; `gap = 0` if `ABS(g) < 0.10` (GAP_SAME_THRESHOLD), otherwise `ROUND(g, 3)`. Positive = Europe cheaper |
 | `gap_label` | NULL if `gap` is NULL; `'same'` if `gap = 0`; `'check_condition'` if `ABS(gap) > 0.50` (GAP_WILD_THRESHOLD); `'eu_cheaper'` if `gap > 0`; else `'us_cheaper'` |
 | `chg_3m`, `chg_12m` | For `m` months: `start = date(as_of_date, 'start of month', '-m months')`, `month_end = date(start, '+1 month', '-1 day')`. `old` = price at the earliest history date ≥ `start`. Value = `ROUND(usd / old - 1, 4)` if `first_date <= month_end` and `old > 0`, else NULL |
-| `chg_7d` | `start = date(as_of_date, '-7 days')`. `old` = price at the earliest history date in `[start, date(start, '+2 days')]`. `ROUND(usd / old - 1, 4)` if found, else NULL (NULL is expected until daily snapshots exist) |
+| `chg_7d` | `old` = price at the latest history date in `[date(as_of_date, '-14 days'), date(as_of_date, '-7 days')]` (CHG_7D_MAX_LOOKBACK_DAYS = 14), so one missed daily run does not blank it. `ROUND(usd / old - 1, 4)` if found, else NULL |
 | `low_12m`, `high_12m` | MIN / MAX history price with `price_date >= date(as_of_date, '-12 months')` |
 | `range_pos_12m` | `ROUND((usd - low_12m) / (high_12m - low_12m), 3)`; NULL if fewer than 2 points in the window or `high_12m = low_12m` |
 | `range_label_12m` | `'low'` if `range_pos_12m <= 0.20` (RANGE_LOW_POS), `'high'` if `>= 0.80` (RANGE_HIGH_POS), `'mid'` otherwise; NULL when `range_pos_12m` is NULL |

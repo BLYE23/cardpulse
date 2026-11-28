@@ -294,6 +294,24 @@ The SQLite database is generated locally at `data/cardpulse.db` (git-ignored).
 - `pipeline_steps` — individual pipeline step results.
 - `data_quality_results` — persisted SQL validation results.
 
+Views (recomputed on every load, relative to the latest price date `as_of_date`):
+
+- `v_as_of` — the latest TCGplayer price date.
+- `v_card_history` — every TCGplayer price of each card's main printing (charts, set values).
+- `v_card_metrics` — one row per card: current US and EU price, US vs EU gap, 7-day,
+  3-month and 12-month change, and the 12-month low/high range.
+- `v_set_value_series` — total value of each set on every date with at least 60% of its cards priced.
+
+`price_observations.source` says where each price came from: `tcgcsv_archive` (monthly
+archive since 2024-02-08), `tcgcsv_archive_daily` (one-time daily backfill, 2026-11-20 to
+2026-11-27), `tcgcsv_daily` (daily snapshots) and `tcgdex` (TCGdex card responses).
+When two sources have a price for the same card, printing, market and date, the daily
+snapshot wins over the archives, and the archives win over TCGdex.
+
+`load_db.py` loads only snapshot folders that contain `_SUCCESS`, so an interrupted
+snapshot is never half-loaded. Run `python pipeline/load_db.py --rebuild` once after
+pulling a schema change, because existing tables keep their old definition.
+
 ---
 
 ## Known limitations
