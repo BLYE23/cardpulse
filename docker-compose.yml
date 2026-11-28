@@ -2,6 +2,8 @@ services:
   pipeline:
     build: .
     image: cardpulse-pipeline:0.1
+    # Same user as the airflow service, so files written by either one stay writable by both.
+    user: "${AIRFLOW_UID:-50000}:0"
     volumes:
       - ./data:/app/data
       - ./site:/app/site

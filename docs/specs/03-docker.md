@@ -72,6 +72,7 @@ services:
   pipeline:
     build: .
     image: cardpulse-pipeline:0.1
+    user: "${AIRFLOW_UID:-50000}:0"   # same user as airflow, so both can write ./data and ./site
     volumes:
       - ./data:/app/data
       - ./site:/app/site
@@ -111,6 +112,7 @@ volumes:
 
 Notes:
 - `pipeline` and the DAG both run the same `pipeline/run_all.py` steps (see `02-dag.md`), against the same `./data`.
+- `pipeline` and `airflow` run as the same user. Otherwise files the pipeline writes as root (`cardpulse.db`, `snapshots/`) are read-only for Airflow and its tasks fail with "attempt to write a readonly database".
 - On Linux hosts set `AIRFLOW_UID=$(id -u)` so files written to `./data` are owned by the user. Docker Desktop on Windows/macOS needs nothing.
 
 ## 4. Airflow image (`docker/airflow.Dockerfile`, M2)

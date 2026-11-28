@@ -209,8 +209,9 @@ Do not commit the password. Each local installation generates its own credential
 The `cardpulse_daily` DAG becomes available once the DAG module and its
 dependencies are integrated.
 
-On Linux, run `export AIRFLOW_UID=$(id -u)` before starting Airflow.
-Docker Desktop on macOS and Windows does not require this setting.
+On Linux, run `export AIRFLOW_UID=$(id -u)` before running any of these commands.
+Docker Desktop on macOS and Windows does not require this setting. The pipeline and
+Airflow containers run as the same user, so both can write `data/` and `site/`.
 
 #### Stop the services
 
