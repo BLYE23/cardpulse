@@ -38,6 +38,7 @@ nav{display:flex;gap:4px;flex-wrap:wrap}
 nav a{color:var(--muted);text-decoration:none;font-weight:500;padding:6px 12px;border-radius:999px}
 nav a:hover{color:var(--ink);background:var(--bg)}
 nav a[aria-current="page"]{color:var(--accent);background:var(--accent-soft)}
+.upd{font-size:12px;color:var(--muted);font-family:var(--mono)}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .gsearch{margin-left:auto;position:relative;flex:0 1 340px;min-width:0}
 .gsearch input{width:100%;padding:8px 12px 8px 34px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
@@ -169,6 +170,7 @@ img{max-width:100%}
 <header class="top"><div class="wrap bar">
   <a class="brand" href="#pokemon"><span class="pulse" aria-hidden="true"></span>CardPulse</a>
   <nav id="nav"><a href="#pokemon">Pokémon</a><a href="#movers">Movers</a><a href="#sets">Sets</a></nav>
+  <span class="upd" id="upd"></span>
   <div class="gsearch" role="search">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <input id="gq" type="search" placeholder="Search any card, e.g. umbreon vmax" autocomplete="off" aria-label="Search cards">
@@ -195,7 +197,7 @@ img{max-width:100%}
       <div><h1>What moved</h1><p class="lede">Biggest price changes. Narrow it to a set, rarity or budget, or search for a single card at the top.</p></div>
     </div>
     <div class="filters">
-      <div class="seg" id="mv-win"><button data-k="chg12" aria-pressed="true">12 months</button><button data-k="chg3" aria-pressed="false">3 months</button></div>
+      <div class="seg" id="mv-win"><button data-k="chg12" aria-pressed="true">12 months</button><button data-k="chg3" aria-pressed="false">3 months</button><button data-k="chg7" aria-pressed="false">7 days</button></div>
       <label for="mv-set">Set<select id="mv-set"></select></label>
       <label for="mv-rar">Rarity<select id="mv-rar"></select></label>
       <label for="mv-min">Price now<select id="mv-min"><option value="1">$1+</option><option value="5" selected>$5+</option><option value="20">$20+</option><option value="100">$100+</option></select></label>
@@ -236,14 +238,12 @@ const art = c => c.local ? `<img src="${c.local}" alt="${esc(c.name)} card" load
 const thumb = c => c.local ? `<img src="${c.local}" alt="" loading="lazy">` : '<div class="mini"></div>';
 const wild = c => c.gap != null && Math.abs(c.gap) > 0.5;  // gaps this large usually mean the two markets list different conditions
 const gapTag = c => !c.gap || wild(c) ? '' : c.gap > 0 ? `<span class="tag eu">EU ${Math.round(c.gap*100)}% cheaper</span>` : `<span class="tag us">US ${Math.round(-c.gap/(1-c.gap)*100)}% cheaper</span>`;
-// 12-month range, same definition as v_card_metrics (docs/specs/01-sql.md); thresholds = RANGE_LOW_POS / RANGE_HIGH_POS in pipeline/config.py
+// 12-month range: low_12m, high_12m, range_pos_12m and range_label_12m come from v_card_metrics
 const yearAgo = d => { const t = new Date(d + 'T00:00:00Z'); t.setUTCFullYear(t.getUTCFullYear() - 1); return t.toISOString().slice(0, 10); };
+const RANGE_LABELS = {low: 'Near 12-month low', mid: 'Mid-range', high: 'Near 12-month high'};
 function range12(c){
-  const from = yearAgo(D.built), pts = Object.entries(c.hist).filter(([d]) => d >= from);
-  const v = pts.map(x => x[1]), lo = Math.min(...v), hi = Math.max(...v);
-  const pos = v.length < 2 || hi === lo ? null : Math.round((c.usd - lo) / (hi - lo) * 1000) / 1000;  // ROUND(..., 3) as in the view
-  const label = pos == null ? null : pos <= 0.20 ? 'Near 12-month low' : pos >= 0.80 ? 'Near 12-month high' : 'Mid-range';
-  return {lo, hi, pos, label, since: pts.length ? pts[0][0] : null, full: Object.keys(c.hist)[0] < from};
+  const from = yearAgo(D.asOf), dates = Object.keys(c.hist);
+  return {lo: c.lo, hi: c.hi, pos: c.pos, label: RANGE_LABELS[c.rl] || null, since: dates.find(d => d >= from) || null, full: dates[0] < from};
 }
 const rangeTag = c => { const r = range12(c); return r.label ? `<span class="tag rng">${r.label}</span>` : ''; };
 const med = a => { const s=[...a].sort((x,y)=>x-y); return s.length ? s[Math.floor(s.length/2)] : null; };
@@ -255,8 +255,9 @@ function mk(el){
 addEventListener('resize', () => charts.forEach(c => !c.isDisposed() && c.resize()));
 function ax(){ return {axisLine:{lineStyle:{color:css('--line')}}, axisLabel:{color:css('--muted'), fontFamily:'IBM Plex Mono'}, splitLine:{lineStyle:{color:css('--line'), opacity:.6}}}; }
 const cardTile = c => `<a class="card" href="#${enc(c.id)}"><div class="art">${art(c)}</div><div class="nm">${esc(c.name)}</div><div class="sub">${esc(setName[c.set])} · ${esc(c.rarity)}</div><div class="pr"><span class="price">${fmt(c.usd)}</span>${gapTag(c)}${rangeTag(c)}</div></a>`;
-$('#foot').innerHTML = `Unofficial fan site. Not affiliated with Nintendo, The Pokémon Company, TCGplayer or Cardmarket. US prices: TCGplayer market price (via tcgcsv). Europe prices: Cardmarket trend (via TCGdex), converted at the ECB rate of $${D.fx.rate} per euro on ${D.fx.date}. Pokémon data: PokéAPI. ${D.cards.length} cards in ${D.sets.length} sets, prices as of ${D.built}. Market estimates, not financial advice.`;
+$('#foot').innerHTML = `Unofficial fan site. Not affiliated with Nintendo, The Pokémon Company, TCGplayer or Cardmarket. US prices: TCGplayer market price (via tcgcsv). Europe prices: Cardmarket trend (via TCGdex), converted at the ECB rate of $${D.fx.rate} per euro on ${D.fx.date}. Pokémon data: PokéAPI. ${D.cards.length} cards in ${D.sets.length} sets, prices as of ${D.asOf}. Market estimates, not financial advice.`;
 function fillSelect(el, opts, all){ el.innerHTML = `<option value="">${all}</option>` + opts.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join(''); }
+$('#upd').textContent = `Prices updated ${D.asOf}`;
 const setOpts = D.sets.map(s => [s.id, s.name]);
 
 /* ---------- Global card search ---------- */
@@ -343,7 +344,8 @@ function renderCard(id){
         <div><div class="eyebrow">${esc(setName[c.set])} · ${esc(c.rarity)}</div><h1>${esc(c.name)}</h1></div>
         <div><div class="big">${fmt(c.usd)}</div><div class="note">TCGplayer market price · ${esc(c.variant.replace(/-/g,' '))}</div>
           ${c.vars.length > 1 ? `<div class="vars">${c.vars.map(v=>`<span>${esc(v.k.replace(/-/g,' '))} <b>${fmt(v.usd)}</b></span>`).join('')}</div>` : ''}</div>
-        <div class="tiles" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+        <div class="tiles">
+          <div class="tile"><span>7 days</span><b class="${cls(c.chg7)}">${pct(c.chg7)}</b></div>
           <div class="tile"><span>3 months</span><b class="${cls(c.chg3)}">${pct(c.chg3)}</b></div>
           <div class="tile"><span>12 months</span><b class="${cls(c.chg12)}">${pct(c.chg12)}</b></div>
           <div class="tile"><span>Tracked since</span><b style="font-size:16px">${Object.keys(c.hist)[0].slice(0,7)}</b></div>
@@ -365,12 +367,12 @@ function renderCard(id){
         <dl><dt>Artist</dt><dd>${esc(c.artist||'—')}</dd><dt>HP</dt><dd>${c.hp||'—'}</dd>${p?`<dt>Pokémon</dt><dd>${cap(p.name)} · Gen ${p.gen} · ${p.types.join(' / ')}</dd>`:''}</dl>
       </div>
     </div>
-    <div class="panel"><div class="head"><h2>Price history</h2><div class="seg" id="hr"><button data-k="6" aria-pressed="${histRange===6}">6M</button><button data-k="12" aria-pressed="${histRange===12}">1Y</button><button data-k="0" aria-pressed="${histRange===0}">All</button></div></div><div class="chart" id="hist"></div><div class="note">TCGplayer market price, ${esc(c.variant.replace(/-/g,' '))} printing, monthly snapshots plus today.</div></div>
+    <div class="panel"><div class="head"><h2>Price history</h2><div class="seg" id="hr"><button data-k="6" aria-pressed="${histRange===6}">6M</button><button data-k="12" aria-pressed="${histRange===12}">1Y</button><button data-k="0" aria-pressed="${histRange===0}">All</button></div></div><div class="chart" id="hist"></div><div class="note">TCGplayer market price, ${esc(c.variant.replace(/-/g,' '))} printing, monthly points since 2024, daily since 2026-11-20.</div></div>
     ${siblings.length ? `<div class="panel"><h2>Other ${cap(p.name)} cards</h2><div class="row-cards" style="margin-top:12px">${siblings.map(cardTile).join('')}</div></div>` : ''}`;
   $('.crumb a')?.addEventListener('click', () => { curDex = c.dex; });
   $('#hr').addEventListener('click', e => { const b=e.target.closest('button'); if(b){ histRange=+b.dataset.k; renderCard(id); }});
   let xs = Object.keys(c.hist), ys = Object.values(c.hist);
-  if (histRange){ const n = histRange + 1; xs = xs.slice(-n); ys = ys.slice(-n); }
+  if (histRange){ const t = new Date(D.asOf + 'T00:00:00Z'); t.setUTCMonth(t.getUTCMonth() - histRange); const from = t.toISOString().slice(0, 10), i = xs.findIndex(d => d >= from); xs = xs.slice(i); ys = ys.slice(i); }
   const ch = mk($('#hist')); const a = ax();
   ch.setOption({grid:{left:60,right:20,top:16,bottom:30}, tooltip:{trigger:'axis', valueFormatter:fmt},
     xAxis:{type:'category', data:xs, boundaryGap:false, ...a, axisLabel:{...a.axisLabel, formatter:v=>v.slice(0,7)}},

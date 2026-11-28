@@ -62,8 +62,9 @@ Every card has its own page with a shareable link:
 
 - large card image, set, card number, rarity, artist and HP
 - current TCGplayer market price, plus the price of each printing when there are several
-- 3-month and 12-month price change, and when tracking started
-- **price history chart** (6 months, 1 year or all) from monthly snapshots since February 2024
+- 7-day, 3-month and 12-month price change, and when tracking started
+- **12-month price range** (see feature 6)
+- **price history chart** (6 months, 1 year or all): monthly points since February 2024, daily points since 20 November 2026
 - **US vs Europe comparison** (see feature 3)
 - links to the other cards of the same Pokémon
 
@@ -100,7 +101,7 @@ Pokémon, not by set. This page shows the entry price and the top end side by si
 
 The biggest gainers and fallers, each with a sparkline:
 
-- time window: 12 months or 3 months
+- time window: 12 months, 3 months or 7 days
 - filters: set, rarity, minimum current price ($1, $5, $20, $100), and list length (12, 25, 50)
 - every row opens the card page
 
@@ -108,20 +109,18 @@ The biggest gainers and fallers, each with a sparkline:
 use fallers to time purchases. In the current data, newly released sets drop sharply in the
 months after release while 1999 Base Set cards keep rising.
 
-### 6. Market Map
+### 6. 12-month price range
 
-A quadrant chart where each sprite is a Pokémon:
+Every card page has a bar from the card's lowest to its highest price of the last 12 months,
+with a marker at today's price. A label says where the price sits: **Near 12-month low**
+(bottom 20% of the range), **Mid-range** or **Near 12-month high** (top 20%). The same label
+appears as a small tag on card grids and Movers rows. Cards with less than a year of history
+show the range since tracking started.
 
-- **x-axis:** 12-month price change of its typical card
-- **y-axis:** its most valuable card today (log scale)
-- four zones: **Hot** (pricey and climbing), **Cooling off** (pricey but falling: waiting may pay),
-  **Rising stars** (cheap but climbing: early-buy candidates), **Quiet** (cheap and stable: easy to collect)
-- filters: set, generation, type, and Top 50 / Top 100 / All. When a set is selected, the map is
-  recalculated from that set's cards only.
-- highlight a Pokémon by name, zoom by dragging or scrolling, click a sprite to open its Pokémon page
+The page states that this is price history only, not a buy or sell recommendation.
 
-**Player need:** _"Buy now or wait?"_ The map gives a one-screen overview of the market, and the
-filters keep it readable.
+**Player need:** _"Is this a good price compared with the last year?"_ The bar answers that at
+a glance, without reading a chart.
 
 ### 7. Sets
 
@@ -137,8 +136,24 @@ It also shows which sets as a whole are gaining value.
 
 ### View the site
 
-The built site is committed in `site/`. Open `site/index.html` in a browser. An internet
-connection is needed for the chart library and fonts.
+Public site: **https://blye23.github.io/cardpulse/**
+
+The public site is published **by hand**, so it can be older than your local build. The
+header shows **Prices updated &lt;date&gt;**: that date is the latest price date in the
+database the site was built from.
+
+To publish a new version after the pipeline has rebuilt `site/` (needs Git and push access):
+
+```bash
+python scripts/publish_site.py
+```
+
+The script commits the contents of `site/` to the `gh-pages` branch and pushes it. GitHub
+Pages serves that branch, usually within a few minutes. Your current branch is not changed.
+
+A local copy is in `site/`: open `site/index.html` in a browser, or run
+`docker compose up -d web` and open http://localhost:8000. An internet connection is needed
+for the chart library and fonts.
 
 ### Rebuild with fresh data
 
@@ -257,6 +272,10 @@ TCGdex card ──dexId───────────────────
   otherwise normal). This keeps the price comparable with Cardmarket and the history consistent.
 - **Price change:** current price divided by the price at the first snapshot on or after the
   start of the window, minus 1. Pokémon-level change is the median over its cards worth at least $1.
+  The 7-day change compares with the latest price 7 to 14 days earlier, so one missed day does not
+  blank it; with no price in that window it shows "—".
+- **One source of numbers:** prices, changes, ranges and US vs EU gaps are computed by the SQL views
+  in `sql/views.sql`. `pipeline/build.py` copies them into the page and does not recompute them.
 
 ---
 

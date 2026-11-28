@@ -1,8 +1,10 @@
-"""Transform the raw pulls in data/ into the website in site/ (one HTML file + card images).
+"""Build the website in site/ (one HTML file + card images) from the database.
 
-Usage (from the repo root, after pipeline/collect.py):  python pipeline/build.py
+Usage (from the repo root, after pipeline/load_db.py):  python pipeline/build.py
+Prices and metrics come from the views v_card_metrics, v_card_history and v_set_value_series in
+data/cardpulse.db; names and stats from the sets, pokemon and price_observations tables.
 """
-import json, os, sys, base64, statistics as st, urllib.request, time, datetime
+import json, os, sys, base64, sqlite3, statistics as st, urllib.request, time, datetime
 from pathlib import Path
 
 S = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).resolve().parents[1])
@@ -17,115 +19,76 @@ def download(url, fn):
     with open(fn, "wb") as f:
         f.write(b)
 
-tc = json.load(open(f"{D}/tcgdex.json"))
-mons = {int(k): v for k, v in json.load(open(f"{D}/pokeapi.json")).items()}
-hist = json.load(open(f"{D}/history.json"))
+if not os.path.exists(f"{D}/cardpulse.db"):
+    sys.exit("data/cardpulse.db not found. Run python pipeline/load_db.py first.")
+db = sqlite3.connect(f"{D}/cardpulse.db")
+db.row_factory = sqlite3.Row
 TODAY = datetime.date.today().isoformat()
-dates = sorted({d for h in hist.values() for d in h})
+AS_OF = db.execute("SELECT as_of_date FROM v_as_of").fetchone()[0]
+fx = db.execute("SELECT rate, rate_date FROM fx_rates ORDER BY rate_date DESC LIMIT 1").fetchone()
+EURUSD = fx["rate"]
+print("as of", AS_OF, "EURUSD", EURUSD, fx["rate_date"])
 
+hist = {}
+for r in db.execute("SELECT card_id, price_date, price FROM v_card_history ORDER BY card_id, price_date"):
+    hist.setdefault(r["card_id"], {})[r["price_date"]] = r["price"]
 
-def norm(s):
-    return s.lower().replace(" ", "-")
-
-
-hist_n = {}
-for k, v in hist.items():
-    pid, sub = k.split("|", 1)
-    hist_n[(int(pid), norm(sub))] = v
-
-fx_path = f"{D}/fx.json"
-if not os.path.exists(fx_path):
-    fx = json.load(urllib.request.urlopen(urllib.request.Request(
-        "https://api.frankfurter.dev/v1/latest?from=EUR&to=USD", headers=UA), timeout=30))
-    json.dump(fx, open(fx_path, "w"))
-fx = json.load(open(fx_path))
-EURUSD = fx["rates"]["USD"]
-print("EURUSD", EURUSD, fx["date"])
+# latest TCGplayer price of every printing (the card page lists them when a card has several)
+vars_ = {}
+for r in db.execute("""
+        SELECT card_id, printing, price FROM (
+            SELECT card_id, printing, price,
+                   ROW_NUMBER() OVER (PARTITION BY card_id, printing ORDER BY price_date DESC) AS rn
+            FROM price_observations WHERE market = 'tcgplayer')
+        WHERE rn = 1 ORDER BY card_id, printing"""):
+    vars_.setdefault(r["card_id"], []).append({"k": r["printing"], "usd": r["price"]})
 
 cards = []
-for c in tc["cards"]:
-    tp = (c.get("pricing") or {}).get("tcgplayer") or {}
-    vars_ = {k: v for k, v in tp.items() if isinstance(v, dict) and v.get("marketPrice")}
-    if not vars_:
-        continue
-    # primary printing: the standard (non reverse-holo) version, which matches Cardmarket's base "trend"
-    vk = next((k for k in ("holofoil", "normal") if k in vars_), next(iter(vars_)))
-    vv = vars_[vk]
-    series = dict(hist_n.get((vv["productId"], norm(vk)), {}))
-    series[TODAY] = vv["marketPrice"]
-    cm = (c.get("pricing") or {}).get("cardmarket") or {}
-    eur = cm.get("trend")
-    eu_usd = round(eur * EURUSD, 2) if eur else None
-    # positive = Europe cheaper; only flag clear gaps on cards worth >= $1
-    gap = None
-    if eu_usd and vv["marketPrice"] >= 1 and eu_usd >= 1:
-        g = 1 - eu_usd / vv["marketPrice"]
-        gap = round(g, 3) if abs(g) >= 0.10 else 0
-    dex = (c.get("dexId") or [None])[0]
+for m in db.execute("SELECT m.* FROM v_card_metrics AS m JOIN cards AS c USING (card_id) ORDER BY c.rowid"):
     cards.append({
-        "id": c["id"], "name": c["name"], "set": c["_set"], "num": c.get("localId"),
-        "rarity": c.get("rarity") or "Unknown",
-        "hp": c.get("hp"), "artist": c.get("illustrator"), "cat": c.get("category"), "dex": dex,
-        "variant": vk, "usd": vv["marketPrice"], "eur": eur, "euUsd": eu_usd, "gap": gap,
-        "vars": [{"k": k, "usd": v["marketPrice"]} for k, v in vars_.items()],
-        "img": c.get("image"), "hist": {d: series[d] for d in sorted(series)},
+        "id": m["card_id"], "name": m["name"], "set": m["set_id"], "num": m["local_id"],
+        "rarity": m["rarity"] or "Unknown",
+        "hp": m["hp"], "artist": m["illustrator"], "cat": m["category"], "dex": m["dex_id"],
+        "variant": m["primary_printing"], "usd": m["usd"], "eur": m["eur"], "euUsd": m["eu_usd"], "gap": m["gap"],
+        "chg7": m["chg_7d"], "chg3": m["chg_3m"], "chg12": m["chg_12m"],
+        "lo": m["low_12m"], "hi": m["high_12m"], "pos": m["range_pos_12m"], "rl": m["range_label_12m"],
+        "vars": vars_.get(m["card_id"], []), "img": m["image_url"], "hist": hist.get(m["card_id"], {}),
     })
-print("cards with price", len(cards), "of", len(tc["cards"]))
+print("cards with price", len(cards))
 cov = sum(1 for c in cards if len(c["hist"]) > 1)
 print("cards with history", cov)
 
-
-def at(c, d):
-    """price on or just after date d (first snapshot >= d)"""
-    for k in c["hist"]:
-        if k >= d:
-            return c["hist"][k]
-    return None
-
-
-def back(months):
-    t = datetime.date.today()
-    y, m = t.year, t.month - months
-    while m <= 0:
-        y, m = y - 1, m + 12
-    return datetime.date(y, m, 1).isoformat()
-
-
-for c in cards:
-    for mo in (3, 12):
-        old = at(c, back(mo))
-        first = next(iter(c["hist"]))
-        c[f"chg{mo}"] = round(c["usd"] / old - 1, 4) if old and first <= back(mo)[:7] + "-31" and old > 0 else None
-
-# Pokemon aggregates
+# Pokemon aggregates (medians stay in Python: SQLite has no MEDIAN)
 by = {}
 for c in cards:
-    if c["dex"] in mons:
+    if c["dex"] is not None:
         by.setdefault(c["dex"], []).append(c)
 poke = []
-for dex, cs in by.items():
-    m = mons[dex]
+for m in db.execute("SELECT * FROM pokemon ORDER BY dex_id"):
+    cs = by.get(m["dex_id"])
+    if not cs:
+        continue
     chg = [c["chg12"] for c in cs if c["chg12"] is not None and c["usd"] >= 1]
     top = max(cs, key=lambda c: c["usd"])
     poke.append({
-        "dex": dex, "name": m["name"], "types": m["types"], "gen": m["generation"].replace("generation-", "").upper(),
-        "legendary": m["legendary"] or m["mythical"], "bst": sum(m["stats"].values()), "stats": m["stats"],
+        "dex": m["dex_id"], "name": m["name"], "types": [t for t in (m["type_primary"], m["type_secondary"]) if t],
+        "gen": m["generation"], "legendary": bool(m["is_legendary"] or m["is_mythical"]), "bst": m["base_stat_total"],
+        "stats": {"hp": m["hp"], "attack": m["attack"], "defense": m["defense"], "special-attack": m["sp_attack"],
+                  "special-defense": m["sp_defense"], "speed": m["speed"]},
         "n": len(cs), "top": top["usd"], "topId": top["id"], "median": round(st.median([c["usd"] for c in cs]), 2),
         "chg12": round(st.median(chg), 4) if chg else None,
     })
 print("pokemon", len(poke))
 
-# Sets: value index over time (sum of market price of cards that have a price that month)
+# Sets: value of every card over time from v_set_value_series (dates with >= 60% of the set priced)
 sets = []
-for s in tc["sets"]:
-    cs = [c for c in cards if c["set"] == s["id"]]
-    series = {}
-    for d in dates + [TODAY]:
-        vals = [c["hist"][d] for c in cs if d in c["hist"]]
-        if len(vals) >= 0.6 * len(cs):
-            series[d] = round(sum(vals), 2)
+for s in db.execute("SELECT * FROM sets ORDER BY rowid"):
+    cs = [c for c in cards if c["set"] == s["set_id"]]
+    series = {r["price_date"]: r["total_usd"] for r in db.execute(
+        "SELECT price_date, total_usd FROM v_set_value_series WHERE set_id = ? ORDER BY price_date", (s["set_id"],))}
     chase = sorted(cs, key=lambda c: -c["usd"])[:6]
-    sets.append({**s, "n": len(cs), "value": round(sum(c["usd"] for c in cs), 2),
+    sets.append({"id": s["set_id"], "name": s["name"], "releaseDate": s["release_date"], "serie": s["series"],
+                 "logo": s["logo_url"], "n": len(cs), "value": round(sum(c["usd"] for c in cs), 2),
                  "series": series, "chase": [c["id"] for c in chase]})
 
 # Images: sprites (data URI) for every pokemon, card images for a featured subset
@@ -166,8 +129,8 @@ for f in os.listdir(f"{OUT}/img"):
     if f not in keep:
         os.remove(f"{OUT}/img/{f}")  # drop images of cards no longer featured
 
-data = {"built": TODAY, "fx": {"rate": EURUSD, "date": fx["date"]}, "dates": dates + [TODAY], "sets": sets, "cards": cards, "pokemon": poke,
-        "featured": featured_mons, "up": [c["id"] for c in up], "down": [c["id"] for c in down]}
+data = {"built": TODAY, "asOf": AS_OF, "fx": {"rate": EURUSD, "date": fx["rate_date"]}, "sets": sets, "cards": cards,
+        "pokemon": poke, "featured": featured_mons, "up": [c["id"] for c in up], "down": [c["id"] for c in down]}
 js = "window.DATA=" + json.dumps(data, separators=(",", ":")) + ";"
 tpl = open(f"{S}/web/template.html", encoding="utf-8").read()
 html = tpl.replace("/*DATA*/", js.replace("</", "<\\/"))
