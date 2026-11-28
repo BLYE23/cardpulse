@@ -142,23 +142,31 @@ connection is needed for the chart library and fonts.
 
 ### Rebuild with fresh data
 
-Requires Python 3.12.
+Requires Python 3.12 on macOS or Linux. **On Windows, use Docker (next section):**
+`pipeline/snapshot_prices.py` uses the Unix-only `fcntl` module, so the daily snapshot step
+fails in Windows Python.
 
 ```bash
 python -m venv .venv
-# Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
 
-python pipeline/collect.py   # pull raw data into data/ (about 15–30 min the first time; cached afterwards)
-python pipeline/build.py     # transform data/ into site/index.html + site/img/
+python pipeline/run_all.py   # all five steps, see "Pipeline steps" below
 ```
 
-`collect.py` caches every API response in `data/_cache/`, so an interrupted run resumes
-where it stopped. `data/` is git-ignored. Each person builds their own copy.
+The first run takes about 30 minutes (measured in Docker, see below). Later runs take a few minutes.
+`collect.py` caches every API response and every tcgcsv archive in `data/_cache/`, so an
+interrupted run resumes where it stopped. `data/` is git-ignored. Each person builds their own copy.
 
 ### Run with Docker
 
-Install and start Docker Desktop. Run these commands from the repository root.
+Install and start Docker Desktop (and Git). Get the code, then run every command below
+from the repository folder:
+
+```bash
+git clone https://github.com/BLYE23/cardpulse.git
+cd cardpulse
+```
 
 #### Build and run the pipeline
 
@@ -167,21 +175,18 @@ docker compose build pipeline
 docker compose run --rm pipeline
 ```
 
-The first collection may take approximately 20–40 minutes because it downloads
-historical data. Later runs reuse cached data.
+This runs all five pipeline steps (see [Pipeline steps](#pipeline-steps)).
+Measured on a fresh clone with Docker Desktop on Windows:
 
-Outputs are stored on your computer in `data/` and `site/`, including
-`data/cardpulse.db` when the SQL module is available.
+| Run | Time |
+| --- | ---- |
+| `docker compose build pipeline` | under 1 minute (plus the one-time download of the Python base image) |
+| First `docker compose run --rm pipeline`, empty `data/` | about 31 minutes: 26 min reference data and price history (42 tcgcsv archives, 914 TCGdex cards), then about 3 min for the snapshot, 1.5 min for the checks and 3 min for the website |
+| Second run on the same day | about 3 minutes (reference data and today's snapshot are skipped) |
+| Run on a new day | about 5–8 minutes (the snapshot adds about 3 minutes) |
 
-The full pipeline requires the SQL and DAG modules, including
-`pipeline/run_all.py`. Until those modules are integrated, test the existing
-collection and website build with:
-
-```bash
-docker compose run --rm pipeline sh -c "python pipeline/collect.py && python pipeline/build.py"
-```
-
-This temporary command does not create or validate the SQL database.
+Outputs are stored on your computer: raw data and the database `data/cardpulse.db` in
+`data/`, the website in `site/`.
 
 #### View the website
 
@@ -197,20 +202,24 @@ Open http://localhost:8000. The service serves the existing contents of `site/`.
 docker compose --profile airflow up -d --build airflow
 ```
 
-Open http://localhost:8080. Log in as `admin` using the generated password
-shown in the startup logs:
+Airflow needs about 2 minutes to start. Then open http://localhost:8080 and log in as
+`admin` with the password Airflow generated for your installation:
 
 ```bash
-docker compose logs airflow | grep -i password
+docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt
 ```
 
 Do not commit the password. Each local installation generates its own credentials.
 
-The `cardpulse_daily` DAG becomes available once the DAG module and its
-dependencies are integrated.
+The `cardpulse_daily` DAG is listed **paused**. Switch it on with the toggle left of its
+name. Airflow then immediately runs the most recent missed day once (`catchup=False` means
+only that one), and afterwards runs every day at 21:30 UTC. To run it now, press ▶
+(*Trigger DAG*). A run is done when all 7 tasks (`start_run`, the five steps, `finish_run`)
+are green. Airflow uses the same `data/` and `site/` folders as `docker compose run`.
 
-On Linux, run `export AIRFLOW_UID=$(id -u)` before starting Airflow.
-Docker Desktop on macOS and Windows does not require this setting.
+On Linux, run `export AIRFLOW_UID=$(id -u)` before running any of these commands.
+Docker Desktop on macOS and Windows does not require this setting. The pipeline and
+Airflow containers run as the same user, so both can write `data/` and `site/`.
 
 #### Stop the services
 
@@ -265,14 +274,23 @@ TCGdex card ──dexId───────────────────
 ```
 cardpulse/
 ├── pipeline/
-│   ├── collect.py      # extract: TCGdex, PokéAPI, tcgcsv → data/
-│   └── build.py        # transform + load: data/ → site/index.html (data inlined) and site/img/
+│   ├── config.py           # shared constants (sets, thresholds, paths)
+│   ├── collect.py          # reference data: TCGdex, PokéAPI, tcgcsv archives → data/
+│   ├── snapshot_prices.py  # daily prices → data/snapshots/<date>/
+│   ├── load_db.py          # data/ → data/cardpulse.db (SQLite) + views
+│   ├── validate.py         # data quality checks from sql/checks.sql
+│   ├── build.py            # database views → site/index.html (data inlined) and site/img/
+│   ├── steps.py            # the ordered step list shared by both runners
+│   ├── run_all.py          # runs all steps without Airflow
+│   └── runlog.py           # run and step timing → database
+├── sql/                    # schema, views, data quality checks, example queries
+├── dags/                   # Airflow DAG cardpulse_daily
+├── docker/, Dockerfile, docker-compose.yml   # containers: pipeline, web, Airflow
+├── scripts/publish_site.py # publishes site/ to GitHub Pages (gh-pages branch)
 ├── web/
-│   └── template.html   # the website: layout, styles and all front-end logic (ECharts)
-├── site/               # built output, committed so anyone can open it right away
-│   ├── index.html
-│   └── img/            # card images for the most valuable cards
-├── data/               # raw API data and caches (git-ignored)
+│   └── template.html       # the website: layout, styles and all front-end logic (ECharts)
+├── site/                   # built website: index.html and img/ (card images)
+├── data/                   # raw API data, snapshots, database and caches (git-ignored)
 ├── docs/specs/         # development specs: shared contracts (00) and one spec per module
 ├── .github/            # pull request and issue templates
 ├── CONTRIBUTING.md     # team workflow: branches, pull requests, reviews
@@ -300,24 +318,27 @@ The SQLite database is generated locally at `data/cardpulse.db` (git-ignored).
 
 - **Coverage:** 5 sets for now: Base Set (1999), Evolving Skies (2021), 151 (2023),
   Prismatic Evolutions (2025) and Mega Evolution (2025).
-- **History granularity:** monthly snapshots (the 8th of each month) plus today. Daily history is
-  available from tcgcsv and planned.
+- **History granularity:** monthly points (the 8th of each month) from February 2024, then
+  daily points from 20 November 2026 (a one-time backfill of tcgcsv daily archives, followed by
+  the daily snapshots).
 - **Images:** the 480 most valuable cards have images. Other cards show a placeholder.
 - **Prices are estimates:** TCGplayer "market price" and Cardmarket "trend" summarize recent
   sales and listings across conditions. Vintage cards are most affected by condition differences.
-- **Static build:** the site is regenerated by running the pipeline. There is no scheduler or
-  database yet (see Roadmap).
+- **Daily updates need a running machine:** Airflow runs inside Docker on a team member's
+  computer, so a day is skipped while that computer or Docker is off. The public site is
+  published by hand; check the **Prices updated** date in its header.
 
 ---
 
 ## Roadmap
 
-Planned, roughly in order:
+Done: SQLite database with SQL views and data quality checks, a daily Airflow DAG with daily
+price snapshots, and Docker packaging.
 
-1. Store data in a database (SQLite) instead of JSON files.
-2. Schedule the pipeline as a daily Airflow DAG, and switch history from monthly to daily snapshots.
-3. Expand to more sets.
-4. Package everything in Docker so the project runs the same way on any machine.
+Next:
+
+1. Expand to more sets.
+2. Run the daily pipeline on an always-on host and publish the site automatically.
 
 Feature ideas from the team go in GitHub Issues (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
